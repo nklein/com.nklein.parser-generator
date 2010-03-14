@@ -17,4 +17,5 @@
 				     *standard-input*))))
 	(cond
 	  ((equal language "lisp")
-	   (lisp-generator parsed-input output-directory args)))))))
+	   (lisp-generator parsed-input output-directory args))
+	  (t (error "Unknown language: ~S" language)))))))

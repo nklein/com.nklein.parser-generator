@@ -7,6 +7,7 @@ sbcl \
     --eval '(com.nklein.parser-generator:main)' \
     --eval '(sb-ext:quit)' \
     --end-toplevel-options \
+    "$@" \
     --language lisp \
     --file examples/parser_generator_parser.xml \
     --types-package com.nklein.parser-generator.types
