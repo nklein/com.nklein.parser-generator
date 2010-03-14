@@ -149,6 +149,22 @@
 					   '("yes" "t" "true" "1")
 					   :test #'equal))))))
 
+(defmethod start progn ((handler sax-handler) (item pg-field) path)
+  (declare (ignore item))
+  (with-slots (paths items) handler
+    (case path
+      (:|/array| (push nil paths)
+	         (push (make-instance 'pg-array) items)))))
+
+(defmethod end progn ((handler sax-handler) (item pg-field) path)
+  (with-slots (paths items) handler
+    (case path
+      (:|/array| (pop paths)
+	         (with-slots (nested-type) item
+		   (setf nested-type
+			 (append nested-type
+				 (list (pop items)))))))))
+
 ;;; =================================================================
 ;;; pg-struct struct
 ;;; =================================================================

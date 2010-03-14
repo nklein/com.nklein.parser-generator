@@ -13,6 +13,7 @@
 	     #:type
 	     #:default
 	     #:optional
+	     #:nested-type
 	   #:pg-struct
 	     #:name
 	     #:extends
@@ -38,7 +39,8 @@
    (type :initarg :type :type string)
    (from :initarg :from :type string :initform "")
    (default :initarg :default :type string)
-   (optional :initarg :optional :type t :initform nil)))
+   (optional :initarg :optional :type t :initform nil)
+   (nested-type :initarg :nested-type :type list :initform nil)))
 
 (defclass pg-struct ()
   ((name :initarg :name :type string)

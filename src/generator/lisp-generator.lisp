@@ -25,6 +25,16 @@
   (with-slots (prefix) generator
     (lisp-local-name generator (concatenate 'string prefix name))))
 
+(defun lisp-determine-field-type (generator field)
+  (declare (ignore generator))
+  (with-slots (type nested-type) field
+    (cond
+      ((and (slot-boundp field 'nested-type)
+	    (= (length nested-type) 1)) :|pg-array|)
+      ((slot-boundp field 'type) (intern type :keyword))
+      (t :|string|))))
+
+
 ;;; =====================================================
 ;;; =====================================================
 
@@ -103,10 +113,7 @@
 				   field)
   (with-slots (name type) field
     (let ((field-name (lisp-local-name generator name))
-	  (field-type (intern (if (slot-boundp field 'type)
-				  type
-				  "string")
-			      :keyword)))
+	  (field-type (lisp-determine-field-type generator field)))
       (format t "(~A :initarg ~:*:~A~A~A)"
 	         field-name
 		 (lisp-field-type generator field field-type)

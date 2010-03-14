@@ -25,6 +25,11 @@
     <field name="optional" type="boolean"
 	                   from="@optional"
 	                   default="no" />
+    <field name="nested type">
+      <array max-elements="1">
+	<array-element type="pg array" from="/array" />
+      </array>
+    </field>
   </struct>
 
   <struct name="pg struct">
