@@ -10,7 +10,6 @@
     (merge-pathnames (make-pathname :name "gen-types" :type "lisp")
 		     output-directory)))
 
-(defgeneric lisp-field-declaration (generator field))
 (defgeneric lisp-field-type (generator field field-type))
 (defgeneric lisp-field-initform (generator field field-type))
 
@@ -154,23 +153,26 @@
 	    struct-fields)))
   (format t "))~%"))
 
-(defun lisp-generator (generator-info output-directory
-		       &key prefix types-package)
-
-  (let ((generator (make-instance 'lisp-generator
-				  :generator-info generator-info
-				  :output-directory output-directory
-				  :prefix prefix
-				  :types-package types-package)))
-    (let ((lisp-types-filename (get-lisp-types-filename generator)))
-      (with-open-file (*standard-output* lisp-types-filename
-				    :direction :output
-				    :if-exists :supersede
-				    :if-does-not-exist :create)
-	(generate-defpackage generator generator-info)
-	(with-slots (parsed-types) generator-info
-	  (mapc #'(lambda (info)
-		       (generate-data-type generator
-					   (slot-value info 'name)
-					   info))
-		parsed-types))))))
+(defun lisp-generator (generator-info output-directory &optional args)
+  (let ((options (nth-value 1 (getopt:getopt args
+					     '(("prefix" :optional)
+					       ("types-package" :required))))))
+    (let ((prefix (or (cdr (assoc "prefix" options :test #'equal)) ""))
+	  (types-package (cdr (assoc "types-package" options :test #'equal))))
+      (let ((generator (make-instance 'lisp-generator
+				      :generator-info generator-info
+				      :output-directory output-directory
+				      :prefix prefix
+				      :types-package types-package)))
+	(let ((lisp-types-filename (get-lisp-types-filename generator)))
+	  (with-open-file (*standard-output* lisp-types-filename
+					     :direction :output
+					     :if-exists :supersede
+					     :if-does-not-exist :create)
+	    (generate-defpackage generator generator-info)
+	    (with-slots (parsed-types) generator-info
+	      (mapc #'(lambda (info)
+			(generate-data-type generator
+					    (slot-value info 'name)
+					    info))
+		    parsed-types))))))))
