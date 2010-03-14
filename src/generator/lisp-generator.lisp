@@ -1,7 +1,8 @@
 (in-package :com.nklein.parser-generator)
 
 (defclass lisp-generator (generator)
-  ((prefix :initform "" :initarg :prefix)))
+  ((prefix :initform "" :initarg :prefix)
+   (types-package :initarg :types-package)))
 
 (defgeneric get-lisp-types-filename (generator))
 (defmethod get-lisp-types-filename ((generator lisp-generator))
@@ -109,8 +110,28 @@
 ;;; =====================================================
 ;;; =====================================================
 
-(defmethod lisp-field-declaration ((generator lisp-generator)
-				   field)
+(defun generate-defpackage (generator info)
+  (with-slots (types-package) generator
+    (format t "(defpackage :~A~%" types-package)
+    (format t "  (:use :common-lisp)~%")
+    (format t "  (:export")
+    (with-slots (parsed-types) info
+      (let ((indent " "))
+	(mapc #'(lambda (struct)
+		  (format t indent)
+		  (with-slots (name struct-fields) struct
+		    (format t "#:~A" (lisp-name generator name))
+		    (mapc #'(lambda (field)
+			      (with-slots (name) field
+				(format t "~%             #:~A"
+					(lisp-local-name generator name))))
+			  struct-fields))
+		  (setf indent "~%           "))
+	    parsed-types)))
+    (format t "))~%~%")
+    (format t "(in-package :~A)~%" types-package)))
+
+(defun lisp-field-declaration (generator field)
   (with-slots (name type) field
     (let ((field-name (lisp-local-name generator name))
 	  (field-type (lisp-determine-field-type generator field)))
@@ -119,6 +140,7 @@
 		 (lisp-field-type generator field field-type)
 		 (lisp-field-initform generator field field-type)))))
 
+(defgeneric generate-data-type (generator name info))
 (defmethod generate-data-type ((generator lisp-generator)
 			       name (info pg-struct))
   (format t "~%(defclass ~A ()~%" (lisp-name generator name))
@@ -132,17 +154,20 @@
 	    struct-fields)))
   (format t "))~%"))
 
-(defun lisp-generator (generator-info output-directory &key prefix)
+(defun lisp-generator (generator-info output-directory
+		       &key prefix types-package)
 
   (let ((generator (make-instance 'lisp-generator
 				  :generator-info generator-info
 				  :output-directory output-directory
-				  :prefix prefix)))
+				  :prefix prefix
+				  :types-package types-package)))
     (let ((lisp-types-filename (get-lisp-types-filename generator)))
       (with-open-file (*standard-output* lisp-types-filename
 				    :direction :output
 				    :if-exists :supersede
 				    :if-does-not-exist :create)
+	(generate-defpackage generator generator-info)
 	(with-slots (parsed-types) generator-info
 	  (mapc #'(lambda (info)
 		       (generate-data-type generator
