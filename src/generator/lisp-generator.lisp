@@ -7,7 +7,7 @@
 (defgeneric get-lisp-types-filename (generator))
 (defmethod get-lisp-types-filename ((generator lisp-generator))
   (with-slots (output-directory) generator
-    (merge-pathnames (make-pathname :name "gen-types" :type "lisp")
+    (merge-pathnames (make-pathname :name "types" :type "lisp")
 		     output-directory)))
 
 (defgeneric lisp-field-type (generator field field-type))
