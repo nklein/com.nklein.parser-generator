@@ -1,0 +1,49 @@
+<parser_generator root="parser generator" from="/parser_generator">
+
+  <struct name="pg array element">
+    <field name="type" type="string" from="@type" />
+    <field name="from" type="string" from="@from" />
+  </struct>
+
+  <struct name="pg array">
+    <field name="min elements" type="integer" from="@min_elements"
+	                       default="0" />
+    <field name="max elements" type="integer" from="@max_elements"
+	                       optional="yes" />
+    <field name="element types">
+      <array min_elements="1">
+	<array_element type="pg array element" from="/array_element" />
+      </array>
+    </field>
+  </struct>
+
+  <struct name="pg field">
+    <field name="name" type="string" from="@name" />
+    <field name="type" type="string" from="@type" optional="yes" />
+    <field name="from" type="string" from="@from" default="" />
+    <field name="default" type="string" from="@default" optional="yes" />
+    <field name="optional" type="boolean"
+	                   from="@optional"
+	                   default="no" />
+  </struct>
+
+  <struct name="pg struct">
+    <field name="name" type="string" from="@name" />
+    <field name="extends" type="string" from="@extends" optional="yes" />
+    <field name="struct fields">
+      <array min_elements="1">
+	<array_element type="pg field" from="/field" />
+      </array>
+    </field>
+  </struct>
+
+  <struct name="pg parser generator">
+    <field type="string" name="root" from="@root" />
+    <field type="string" name="from" from="@from" />
+    <field name="parsed types">
+      <array>
+	<array_element type="pg struct" from="/struct" />
+      </array>
+    </field>
+  </struct>
+</parser_generator>

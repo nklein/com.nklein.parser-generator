@@ -1,0 +1,3 @@
+gen
+src/parser/sbcl-1.0*
+src/generator/sbcl-1.0*
