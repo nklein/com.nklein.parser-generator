@@ -27,7 +27,7 @@
 	                   default="no" />
     <field name="nested type">
       <array max-elements="1">
-	<array-element type="pg array" from="/array" />
+	<array_element type="pg array" from="/array" />
       </array>
     </field>
   </struct>

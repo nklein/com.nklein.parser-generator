@@ -10,6 +10,7 @@ sbcl \
     "$@" \
     --language lisp \
     --file examples/parser_generator_parser.xml \
-    --types-package com.nklein.parser-generator.types
+    --types-package com.nklein.parser-generator.types \
+    --reader-package com.nklein.parser-generator.reader
 
 

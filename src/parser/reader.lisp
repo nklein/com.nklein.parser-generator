@@ -116,24 +116,26 @@
 (defmethod data progn ((handler sax-handler) (item pg-array) path value)
   (with-slots (min-elements max-elements) item
     (case path
-      (:|@min-elements| (setf min-elements (parse-integer value)))
-      (:|@max-elements| (setf max-elements (parse-integer value))))))
+      (:|@min_elements| (setf min-elements (parse-integer value)))
+      (:|@max_elements| (setf max-elements (parse-integer value))))))
 
 (defmethod start progn ((handler sax-handler) (item pg-array) path)
   (declare (ignore item))
   (with-slots (paths items) handler
     (case path
-      (:|/array_element| (push nil paths)
-	                 (push (make-instance 'pg-array-element) items)))))
+      (:|/array_element|
+             (push nil paths)
+             (push (make-instance 'pg-array-element) items)))))
 
 (defmethod end progn ((handler sax-handler) (item pg-array) path)
   (with-slots (paths items) handler
     (case path
-      (:|/array_element| (pop paths)
-	                  (with-slots (element-types) item
-			    (setf element-types
-				  (append element-types
-					  (list (pop items)))))))))
+      (:|/array_element|
+             (pop paths)
+	     (with-slots (element-types) item
+	       (setf element-types
+		     (append element-types
+			     (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-field struct
@@ -146,24 +148,25 @@
       (:|@from| (setf from value))
       (:|@default| (setf default value))
       (:|@optional| (setf optional (member (string-downcase value)
-					   '("yes" "t" "true" "1")
-					   :test #'equal))))))
+                                              '("yes" "t" "true" "1")
+                                              :test #'equalp))))))
 
 (defmethod start progn ((handler sax-handler) (item pg-field) path)
   (declare (ignore item))
   (with-slots (paths items) handler
     (case path
-      (:|/array| (push nil paths)
-	         (push (make-instance 'pg-array) items)))))
+      (:|/array|
+             (push nil paths)
+             (push (make-instance 'pg-array) items)))))
 
 (defmethod end progn ((handler sax-handler) (item pg-field) path)
   (with-slots (paths items) handler
     (case path
-      (:|/array| (pop paths)
-	         (with-slots (nested-type) item
-		   (setf nested-type
-			 (append nested-type
-				 (list (pop items)))))))))
+      (:|/array|
+             (pop paths)
+	     (with-slots (nested-type) item
+	       (setf nested-type
+		     (append nested-type (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-struct struct
@@ -178,17 +181,18 @@
   (declare (ignore item))
   (with-slots (paths items) handler
     (case path
-      (:|/field| (push nil paths)
-	         (push (make-instance 'pg-field) items)))))
+      (:|/field|
+             (push nil paths)
+             (push (make-instance 'pg-field) items)))))
 
 (defmethod end progn ((handler sax-handler) (item pg-struct) path)
   (with-slots (paths items) handler
     (case path
-      (:|/field| (pop paths)
-	         (with-slots (struct-fields) item
-		   (setf struct-fields
-			 (append struct-fields
-				 (list (pop items)))))))))
+      (:|/field|
+	     (pop paths)
+	     (with-slots (struct-fields) item
+	       (setf struct-fields
+		     (append struct-fields (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-parser-generator struct
@@ -203,14 +207,15 @@
   (declare (ignore item))
   (with-slots (paths items) handler
     (case path
-      (:|/struct| (push nil paths)
-	          (push (make-instance 'pg-struct) items)))))
+      (:|/struct|
+             (push nil paths)
+             (push (make-instance 'pg-struct) items)))))
 
 (defmethod end progn ((handler sax-handler) (item pg-parser-generator) path)
   (with-slots (paths items) handler
     (case path
-      (:|/struct| (pop paths)
-	          (with-slots (parsed-types) item
-		    (setf parsed-types
-			  (append parsed-types
-				  (list (pop items)))))))))
+      (:|/struct|
+	     (pop paths)
+	     (with-slots (parsed-types) item
+	       (setf parsed-types
+		     (append parsed-types (list (pop items)))))))))
