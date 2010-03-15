@@ -92,7 +92,7 @@
     last-item))
 
 (defun parse (source &key (root-path "/parser_generator")
-	                  (root-type 'pg-parser-generator))
+                          (root-type 'pg-parser-generator))
 
   (let ((handler (make-instance 'sax-handler :root-path root-path
 			                     :root-type root-type)))
@@ -194,10 +194,10 @@
 ;;; pg-parser-generator struct
 ;;; =================================================================
 (defmethod data progn ((handler sax-handler) (item pg-parser-generator) path value)
-  (with-slots (root type) item
+  (with-slots (root from) item
     (case path
       (:|@root| (setf root value))
-      (:|@type| (setf type value)))))
+      (:|@from| (setf from value)))))
 
 (defmethod start progn ((handler sax-handler) (item pg-parser-generator) path)
   (declare (ignore item))

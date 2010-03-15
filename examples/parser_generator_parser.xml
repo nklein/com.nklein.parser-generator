@@ -1,4 +1,4 @@
-<parser_generator root="parser generator" from="/parser_generator">
+<parser_generator root="pg parser generator" from="/parser_generator">
 
   <struct name="pg array element">
     <field name="type" type="string" from="@type" />
