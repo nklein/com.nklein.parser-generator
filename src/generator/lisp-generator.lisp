@@ -137,8 +137,11 @@
                     (format t "#:~A" (lisp-name generator name))
                     (mapc #'(lambda (field)
                               (with-slots (name) field
-                                (format t "~%             #:~A"
-                                        (lisp-local-name generator name))))
+				(let ((local (lisp-local-name generator name))
+				      (global (lisp-name generator name)))
+				  (format t "~%             #:~A" local)
+				  (unless (equalp local global)
+				    (format t "~%             #:~A" global)))))
                           struct-fields))
                   (setf indent "~%           "))
             parsed-types)
@@ -152,8 +155,9 @@
   (with-slots (name type) field
     (let ((field-name (lisp-local-name generator name))
           (field-type (lisp-determine-field-type generator field)))
-      (format t "(~A :initarg ~:*:~A~A~A)"
+      (format t "(~A :initarg ~:*:~A :accessor ~A~A~A)"
                  field-name
+		 (lisp-name generator name)
                  (lisp-field-type generator field field-type)
                  (lisp-field-initform generator field field-type)))))
 
