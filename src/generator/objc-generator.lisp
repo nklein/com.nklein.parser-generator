@@ -224,9 +224,13 @@
 (defmethod generate-data-type-decl ((generator objc-generator)
 				    name (info pg-struct))
   (format t "~%")
-  (format t "@interface ~A" (objc-name generator name))
-  (when (slot-boundp info 'extends)
-    (format t " : ~A" (objc-name generator (slot-value info 'extends))))
+  (format t "//======================================================~%")
+  (format t "// ~A struct declaration~%" (objc-name generator name))
+  (format t "//======================================================~%")
+  (format t "@interface ~A : " (objc-name generator name))
+  (if (slot-boundp info 'extends)
+      (format t "~A" (objc-name generator (slot-value info 'extends)))
+      (format t "NSObject"))
   (format t " {~%")
   (with-slots (struct-fields) info
     (mapc #'(lambda (field)
@@ -272,7 +276,8 @@
   (declare (ignore field-type))
   (with-slots (name default) field
     (let ((name (objc-local-name generator name)))
-      (if (slot-boundp field 'default)
+      (if (and (slot-boundp field 'default)
+	       (plusp (length default)))
 	  (format t "~%        ~A = [[NSString alloc] initWithString:@\"~A\"];"
 		    name default)
 	  (format t "~%        ~A = [[NSString alloc] init];" name)))))
@@ -296,7 +301,10 @@
     (let ((name (objc-local-name generator name)))
       (format t "~%        ~A = ~A;"
 	      name
-	      (if (and (slot-boundp field 'default) default)
+	      (if (and (slot-boundp field 'default)
+		       (member (string-downcase default)
+			       '("yes" "t" "true" "1")
+			       :test #'equalp))
 		  "YES"
 		  "NO")))))
 
@@ -308,6 +316,34 @@
     (let ((name (objc-local-name generator name)))
       (format t "~%        ~A = [[NSArray alloc] init];" name))))
 
+;;; ======================================================
+
+(defgeneric objc-field-prop-dealloc (generator field field-type))
+
+(defmethod objc-field-prop-dealloc (generator field field-type)
+  (declare (ignore generator field field-type)))
+
+(defmethod objc-field-prop-dealloc ((generator objc-generator)
+				    field
+				    (field-type string))
+  (objc-field-prop-dealloc generator field (intern field-type :keyword)))
+
+(defmethod objc-field-prop-dealloc ((generator objc-generator)
+				    field
+				    (field-type (eql :|string|)))
+  (declare (ignore field-type))
+  (with-slots (name) field
+    (let ((name (objc-local-name generator name)))
+      (format t "~%    [~A release];" name))))
+
+(defmethod objc-field-prop-dealloc ((generator objc-generator)
+				    field
+				    (field-type pg-array))
+  (declare (ignore field-type))
+  (with-slots (name) field
+    (let ((name (objc-local-name generator name)))
+      (format t "~%    [~A release];" name))))
+
 ;;; =====================================================
 ;;; =====================================================
 
@@ -315,6 +351,9 @@
 (defmethod generate-data-type-impl ((generator objc-generator)
 				    name (info pg-struct))
   (format t "~%")
+  (format t "//======================================================~%")
+  (format t "// ~A struct implementation~%" (objc-name generator name))
+  (format t "//======================================================~%")
   (format t "@implementation ~A~%" (objc-name generator name))
   (with-slots (struct-fields) info
     (mapc #'(lambda (field)
@@ -335,6 +374,18 @@
   (format t "~%")
   (format t "    }~%")
   (format t "    return self;~%")
+  (format t "}~%")
+  (format t "~%")
+  (format t "- (void)dealloc {")
+  (with-slots (struct-fields) info
+    (mapc #'(lambda (field)
+	      (with-slots (type nested-type) field
+		(objc-field-prop-dealloc generator
+					 field
+					 (or (first nested-type) type))))
+	  (reverse struct-fields)))
+  (format t "~%")
+  (format t "    [super dealloc];~%")
   (format t "}~%")
   (format t "@end~%"))
 
