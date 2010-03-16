@@ -23,35 +23,35 @@
   (:documentation "This is called at the opening of each xml tag")
   (:method-combination progn)
   (:method progn (handler item path)
-	   (declare (ignore handler item path))))
+           (declare (ignore handler item path))))
 
 (defgeneric data (handler item path value)
   (:documentation "This is called with attributes and text contents of tags")
   (:method-combination progn)
   (:method progn (handler item path value)
-	   (declare (ignore handler item path value))))
+           (declare (ignore handler item path value))))
 
 (defgeneric end (handler item path)
   (:documentation "This is called at the closing of each xml tag")
   (:method-combination progn)
   (:method progn (handler item path)
-	   (declare (ignore handler item path))))
+           (declare (ignore handler item path))))
 
 (defun add-to-path (initial separator new)
   (intern (concatenate 'string (when initial (symbol-name initial))
-		               separator
-			       new)
-	  :keyword))
+                               separator
+                               new)
+          :keyword))
 
 (defun push-path (handler separator new)
   (with-slots (paths) handler
     (push (add-to-path (first paths) separator new) paths)))
 
 (defmethod sax:start-element ((handler sax-handler)
-			      namespace-uri
-			      local-name
-			      qname
-			      attributes)
+                              namespace-uri
+                              local-name
+                              qname
+                              attributes)
   (declare (ignore namespace-uri qname))
   (with-slots (root-path root-type paths items buffers) handler
     (push-path handler "/" local-name)
@@ -62,26 +62,26 @@
     (start handler (first items) (first paths))
     (dolist (attr attributes)
       (with-accessors ((attr-name sax:attribute-local-name)
-		       (attr-value sax:attribute-value)) attr
-	(data handler (first items)
-	              (add-to-path (first paths) "@" attr-name)
-		      attr-value)))))
+                       (attr-value sax:attribute-value)) attr
+        (data handler (first items)
+                      (add-to-path (first paths) "@" attr-name)
+                      attr-value)))))
 
 (defmethod sax:characters ((handler sax-handler) data)
   (with-slots (buffers) handler
     (push data (first buffers))))
 
 (defmethod sax:end-element ((handler sax-handler)
-			    namespace-uri
-			    local-name
-			    qname)
+                            namespace-uri
+                            local-name
+                            qname)
   (declare (ignore namespace-uri local-name qname))
   (with-slots (root-path items paths buffers last-item) handler
     (let ((text-contents (apply #'concatenate 'string
-				              (nreverse (pop buffers)))))
+                                              (nreverse (pop buffers)))))
       (data handler (first items)
-	            (add-to-path (first paths) "/" ".")
-		    text-contents))
+                    (add-to-path (first paths) "/" ".")
+                    text-contents))
     (pop paths)
     (when (eql (first paths) root-path)
       (setf last-item (pop items)))
@@ -95,10 +95,10 @@
                           (root-type 'pg-parser-generator))
 
   (let ((handler (make-instance 'sax-handler :root-path root-path
-			                     :root-type root-type)))
+                                             :root-type root-type)))
     (typecase source
       (pathname (with-open-file (stream source :element-type 'unsigned-byte)
-		  (cxml:parse-stream stream handler)))
+                  (cxml:parse-stream stream handler)))
       (t (cxml:parse source handler)))))
 
 ;;; =================================================================
@@ -132,10 +132,9 @@
     (case path
       (:|/array_element|
              (pop paths)
-	     (with-slots (element-types) item
-	       (setf element-types
-		     (append element-types
-			     (list (pop items)))))))))
+             (with-slots (element-types) item
+               (setf element-types
+                     (append element-types (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-field struct
@@ -164,9 +163,9 @@
     (case path
       (:|/array|
              (pop paths)
-	     (with-slots (nested-type) item
-	       (setf nested-type
-		     (append nested-type (list (pop items)))))))))
+             (with-slots (nested-type) item
+               (setf nested-type
+                     (append nested-type (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-struct struct
@@ -189,10 +188,10 @@
   (with-slots (paths items) handler
     (case path
       (:|/field|
-	     (pop paths)
-	     (with-slots (struct-fields) item
-	       (setf struct-fields
-		     (append struct-fields (list (pop items)))))))))
+             (pop paths)
+             (with-slots (struct-fields) item
+               (setf struct-fields
+                     (append struct-fields (list (pop items)))))))))
 
 ;;; =================================================================
 ;;; pg-parser-generator struct
@@ -215,7 +214,8 @@
   (with-slots (paths items) handler
     (case path
       (:|/struct|
-	     (pop paths)
-	     (with-slots (parsed-types) item
-	       (setf parsed-types
-		     (append parsed-types (list (pop items)))))))))
+             (pop paths)
+             (with-slots (parsed-types) item
+               (setf parsed-types
+                     (append parsed-types (list (pop items)))))))))
+
