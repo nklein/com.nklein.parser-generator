@@ -115,7 +115,7 @@
 ;;; =====================================================
 
 (defun generate-defpackage (generator info)
-  (with-slots (types-package) generator
+  (with-slots (types-package reader-package) generator
     (format t "(defpackage :~A~%" types-package)
     (format t "  (:use :common-lisp)~%")
     (format t "  (:export")
@@ -131,7 +131,10 @@
                                         (lisp-local-name generator name))))
                           struct-fields))
                   (setf indent "~%           "))
-            parsed-types)))
+            parsed-types)
+	(when (equalp types-package reader-package)
+	  (format t indent)
+	  (format t "#:parse"))))
     (format t "))~%~%")
     (format t "(in-package :~A)~%" types-package)))
 
@@ -161,11 +164,10 @@
 
 (defun generate-cxml-boilerplate (generator)
   (with-slots (types-package reader-package) generator
-    (format t "(defpackage :~A~%" reader-package)
-    (if (equalp types-package reader-package)
-        (format t "  (:use :common-lisp)~%")
-        (format t "  (:use :~A :common-lisp)~%" types-package))
-    (format t "  (:export #:parse))~%~%")
+    (unless (equalp types-package reader-package)
+      (format t "(defpackage :~A~%" reader-package)
+      (format t "  (:use :~A :common-lisp)~%" types-package)
+      (format t "  (:export #:parse))~%~%"))
     (format t "(in-package :~A)~%" reader-package))
 
   (write-string "
