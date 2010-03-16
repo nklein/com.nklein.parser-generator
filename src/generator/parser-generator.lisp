@@ -1,7 +1,5 @@
 (in-package :com.nklein.parser-generator)
 
-(import 'com.nklein.parser-generator.lisp-generator::lisp-generator)
-
 (defun main (&optional (args sb-ext:*posix-argv*))
   (let* ((option-list '(("language" :optional)
 			("output-directory" :optional)
@@ -18,5 +16,9 @@
 				   *standard-input*))))
       (cond
 	((equal language "lisp")
-	      (lisp-generator parsed-input output-directory args))
+	      (com.nklein.parser-generator.lisp-generator::lisp-generator
+	           parsed-input output-directory args))
+	((equal language "objc")
+	      (com.nklein.parser-generator.objc-generator::objc-generator
+	           parsed-input output-directory args))
 	(t (error "Unknown language: ~S" language))))))

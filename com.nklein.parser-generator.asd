@@ -5,5 +5,6 @@
 			      :serial t
 			      :components ((:file "package")
 					   (:file "lisp-generator")
+					   (:file "objc-generator")
 					   (:file "validation")
 					   (:file "parser-generator")))))))
