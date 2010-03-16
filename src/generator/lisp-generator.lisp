@@ -1,7 +1,17 @@
-(in-package :com.nklein.parser-generator)
+(defpackage :com.nklein.parser-generator.lisp-generator
+  (:use :com.nklein.parser-generator.reader
+	:com.nklein.parser-generator.types
+	:com.nklein.parser-generator
+	:common-lisp)
+  (:export #:lisp-generator))
 
-(defclass lisp-generator (generator)
-  ((prefix :initform "" :initarg :prefix)
+(in-package :com.nklein.parser-generator.lisp-generator)
+
+(defclass lisp-generator ()
+  ((generator-info :initarg :generator-info
+		   :initform (error "Must have generator info"))
+   (output-directory :initarg :output-directory :initform #P".")
+   (prefix :initform "" :initarg :prefix)
    (types-package :initarg :types-package)
    (reader-package :initarg :reader-package)))
 

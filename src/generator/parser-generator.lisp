@@ -1,5 +1,7 @@
 (in-package :com.nklein.parser-generator)
 
+(import 'com.nklein.parser-generator.lisp-generator::lisp-generator)
+
 (defun main (&optional (args sb-ext:*posix-argv*))
   (let* ((option-list '(("language" :optional)
 			("output-directory" :optional)
