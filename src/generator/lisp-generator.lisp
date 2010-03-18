@@ -265,7 +265,7 @@
                     text-contents))
     (pop paths)
     (when (eql (first paths) root-path)
-      (setf last-item (pop items)))
+      (setf last-item (first items)))
     (end handler (second items) (first paths))))
 
 (defmethod sax:end-document ((handler sax-handler))

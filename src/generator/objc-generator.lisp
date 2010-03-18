@@ -53,6 +53,14 @@
 	       (concatenate 'string (string-upcase prefix)
 			            (string-capitalize name)))))
 
+(defun objc-enum-name (generator name)
+  (declare (ignore generator))
+  (map 'string #'(lambda (char)
+		   (if (member char '(#\Space #\Tab))
+		       #\_
+		       char))
+       (concatenate 'string " " (string-upcase name))))
+
 (defun objc-determine-field-type (generator field)
   (declare (ignore generator))
   (with-slots (type nested-type) field
@@ -380,6 +388,7 @@
   (with-slots (reader-class) generator
     (let ((fields '("NSString* rootPath"
 		    "NSMutableArray* items"
+		    "NSMutableArray* itemTypes"
 		    "NSMutableArray* buffers"
 		    "NSMutableArray* paths"
 		    "NSObject* lastItem")))
@@ -403,10 +412,30 @@
       (format t "~%")
       (format t "@end~%"))))
 
+(defgeneric generate-type-specific-enums (generator type))
+(defmethod generate-type-specific-enums (generator (type pg-struct))
+  (with-slots (name struct-fields) type
+    (format t "    ~A,~%" (concatenate 'string
+				       "struct"
+				       (objc-enum-name generator name)))
+    (mapc #'(lambda (field)
+	      (with-slots (nested-type (field-name name)) field
+		(when nested-type
+		  (format t "        ~A,~%"
+			  (concatenate 'string
+				       "struct"
+				       (objc-enum-name generator
+						       name)
+				       "__field"
+				       (objc-enum-name generator
+						       field-name))))))
+	  struct-fields)))
+
 (defun generate-nsxmlparser-impl-boilerplate (generator)
   (with-slots (types-file reader-class generator-info) generator
-    (with-slots (root) generator-info
-      (let ((fields '("rootPath" "items" "buffers" "paths" "lastItem")))
+    (with-slots (root from parsed-types) generator-info
+      (let ((fields '("rootPath" "items" "itemTypes"
+		      "buffers" "paths" "lastItem")))
 	(format t "#import \"~A.h\"~%" types-file)
 	(format t "#import \"~A.h\"~%" reader-class)
 	(format t "~%")
@@ -417,10 +446,22 @@
 	      fields)
 	(format t "~%")
 
+	(format t "enum {~%")
+	(format t "    base~A,~%" (objc-enum-name generator "string"))
+	(format t "    base~A,~%" (objc-enum-name generator "integer"))
+	(format t "    base~A,~%" (objc-enum-name generator "boolean"))
+	(mapc #'(lambda (type)
+		  (generate-type-specific-enums generator type))
+	      parsed-types)
+	(format t "    parser__last_known_type~%")
+	(format t "};~%")
+	(format t "~%")
+
 	(format t "- (id)init {~%")
 	(format t "    if ( ( self = [super init] ) != nil ) {~%")
-	(format t "        rootPath = @~S;~%" root)
+	(format t "        rootPath = @~S;~%" from)
 	(format t "        items = [[NSMutableArray alloc] init];~%")
+	(format t "        itemTypes = [[NSMutableArray alloc] init];~%")
 	(format t "        buffers = [[NSMutableArray alloc] init];~%")
 	(format t "        paths = [[NSMutableArray alloc] init];~%")
 	(format t "        lastItem = nil;~%")
@@ -487,6 +528,78 @@
 		  reader-class)
 	(format t "}~%")
 	(format t "~%")
+
+	(format t "- (NSString*)addToPath:(NSString*)_component withSeparator:(NSString*)_separator {~%")
+	(format t "    NSString* cur = (NSString*)[paths lastObject];~%")
+	(format t "    if ( cur == nil ) { cur = @\"\"; }~%")
+	(format t "    NSString* newPart = [_separator stringByAppendingString:_component];~%")
+	(format t "    return [cur stringByAppendingString:newPart];~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)pushPath:(NSString*)_component withSeparator:(NSString*)_separator {~%")
+	(format t "    [paths addObject:[self addToPath:_component withSeparator:_separator]];~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)start:(NSString*)_path {~%")
+	(format t "   NSLog( @\"START %@\", _path );~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)end:(NSString*)_path {~%")
+	(format t "   NSLog( @\"END   %@\", _path );~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)data:(NSString*)_path value:(NSString*)_value {~%")
+	(format t "   NSLog( @\"   [%@]: %@\", _path, _value );~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)parser:(NSXMLParser*)_parser didStartElement:(NSString*)_name~%")
+	(format t "        namespaceURI:(NSString*)_namespaceURI qualifiedName:(NSString*)_qname~%")
+	(format t "        attributes:(NSDictionary*)_attributes {~%")
+	(format t "    [self pushPath:_name withSeparator:@\"/\"];~%")
+	(format t "    if ( [items count] == 0~%")
+	(format t "    && [rootPath compare:(NSString*)[paths lastObject]] == NSOrderedSame ) {~%")
+	(format t "        [paths addObject:@\"\"];~%")
+	(format t "        [items addObject:[[[~A alloc] init] autorelease]];~%" (objc-name generator root))
+	(format t "        [itemTypes addObject:[NSNumber numberWithInt:struct~A]];~%" (objc-enum-name generator root))
+	(format t "    }~%")
+	(format t "    [buffers addObject:@\"\"];~%")
+	(format t "    [self start:(NSString*)[paths lastObject]];~%")
+	(format t "~%")
+	(format t "    for ( NSString* attrib in [_attributes keyEnumerator] ) {~%")
+	(format t "        [self data:[self addToPath:attrib withSeparator:@\"@\"]~%")
+	(format t "             value:(NSString*)[_attributes objectForKey:attrib]];~%")
+	(format t "    }~%")
+	(format t "}~%")
+
+	(format t "- (void)parser:(NSXMLParser*)_parser didEndElement:(NSString*)_name~%")
+	(format t "        namespaceURI:(NSString*)_namespaceURI~%")
+	(format t "       qualifiedName:(NSString*)_qname {~%")
+	(format t "    NSString* text = [buffers lastObject];~%")
+	(format t "    if ( [text length] > 0 ) {~%")
+	(format t "        [self data:[self addToPath:@\".\" withSeparator:@\"/\"] value:text];~%")
+	(format t "    }~%")
+	(format t "~%")
+	(format t "    [buffers removeLastObject];~%")
+	(format t "    [paths removeLastObject];~%")
+	(format t "    NSString* path = (NSString*)[paths lastObject];~%")
+	(format t "~%")
+	(format t "    if ( [rootPath isEqualToString:path] ) {~%")
+	(format t "        self.lastItem = (NSObject*)[items lastObject];~%")
+	(format t "    }~%")
+	(format t "~%")
+	(format t "    [self end:path];~%")
+	(format t "}~%")
+
+	(format t "-(void)parser:(NSXMLParser*)_parser foundCharacters:(NSString*)_chars {~%")
+	(format t "    NSString* current = (NSString*)[buffers lastObject];~%")
+	(format t "    [buffers removeLastObject];~%")
+	(format t "    [buffers addObject:[current stringByAppendingString:_chars]];~%")
+	(format t "}~%")
 
 	(format t "~%")
 	(format t "@end~%")))))
