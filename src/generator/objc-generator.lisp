@@ -53,14 +53,6 @@
 	       (concatenate 'string (string-upcase prefix)
 			            (string-capitalize name)))))
 
-(defun objc-enum-name (generator name)
-  (declare (ignore generator))
-  (map 'string #'(lambda (char)
-		   (if (member char '(#\Space #\Tab))
-		       #\_
-		       char))
-       (concatenate 'string " " (string-upcase name))))
-
 (defun objc-determine-field-type (generator field)
   (declare (ignore generator))
   (with-slots (type nested-type) field
@@ -168,7 +160,7 @@
 				   field
 				   (field-type (eql :|pg-array|)))
   (with-slots (name) field
-    (format t "  NSArray* ~A;~%" (objc-local-name generator name))))
+    (format t "  NSMutableArray* ~A;~%" (objc-local-name generator name))))
 
 ;;; =====================================================
 ;;; =====================================================
@@ -198,7 +190,7 @@
 				   field
 				   (field-type (eql :|pg-array|)))
   (with-slots (name) field
-    (format t "@property (nonatomic, retain) NSArray* ~A;~%"
+    (format t "@property (nonatomic, retain) NSMutableArray* ~A;~%"
 	    (objc-local-name generator name))))
 
 ;;; =====================================================
@@ -304,7 +296,7 @@
   (declare (ignore field-type))
   (with-slots (name) field
     (let ((name (objc-local-name generator name)))
-      (format t "~%        ~A = [[NSArray alloc] init];" name))))
+      (format t "~%        ~A = [[NSMutableArray alloc] init];" name))))
 
 ;;; ======================================================
 
@@ -388,7 +380,6 @@
   (with-slots (reader-class) generator
     (let ((fields '("NSString* rootPath"
 		    "NSMutableArray* items"
-		    "NSMutableArray* itemTypes"
 		    "NSMutableArray* buffers"
 		    "NSMutableArray* paths"
 		    "NSObject* lastItem")))
@@ -405,6 +396,10 @@
 		(format t "@property (nonatomic, retain) ~A;~%" field))
 	    fields)
       (format t "~%")
+      (format t "- (void)startObject:(NSObject*)_obj;~%")
+      (format t "- (NSObject*)endObject;~%")
+      (format t "~%")
+
       (format t "+ (id)parseFromURL:(NSURL*)_url;~%")
       (format t "+ (id)parseFromURL:(NSURL*)_url withRootPath:(NSString*)_rootPath;~%")
       (format t "+ (id)parseFromData:(NSData*)_data;~%")
@@ -412,33 +407,19 @@
       (format t "~%")
       (format t "@end~%"))))
 
-(defgeneric generate-type-specific-enums (generator type))
-(defmethod generate-type-specific-enums (generator (type pg-struct))
-  (with-slots (name struct-fields) type
-    (format t "    ~A,~%" (concatenate 'string
-				       "struct"
-				       (objc-enum-name generator name)))
-    (mapc #'(lambda (field)
-	      (with-slots (nested-type (field-name name)) field
-		(when nested-type
-		  (format t "        ~A,~%"
-			  (concatenate 'string
-				       "struct"
-				       (objc-enum-name generator
-						       name)
-				       "__field"
-				       (objc-enum-name generator
-						       field-name))))))
-	  struct-fields)))
-
 (defun generate-nsxmlparser-impl-boilerplate (generator)
   (with-slots (types-file reader-class generator-info) generator
     (with-slots (root from parsed-types) generator-info
-      (let ((fields '("rootPath" "items" "itemTypes"
-		      "buffers" "paths" "lastItem")))
+      (let ((fields '("rootPath" "items" "buffers" "paths" "lastItem")))
 	(format t "#import \"~A.h\"~%" types-file)
 	(format t "#import \"~A.h\"~%" reader-class)
 	(format t "~%")
+
+	(mapc #'(lambda (type)
+		  (with-slots (name) type
+		    (generate-data-type-parser generator name type)))
+	      parsed-types)
+
 	(format t "@implementation ~A~%" reader-class)
 	(format t "~%")
 	(mapc #'(lambda (field)
@@ -446,22 +427,10 @@
 	      fields)
 	(format t "~%")
 
-	(format t "enum {~%")
-	(format t "    base~A,~%" (objc-enum-name generator "string"))
-	(format t "    base~A,~%" (objc-enum-name generator "integer"))
-	(format t "    base~A,~%" (objc-enum-name generator "boolean"))
-	(mapc #'(lambda (type)
-		  (generate-type-specific-enums generator type))
-	      parsed-types)
-	(format t "    parser__last_known_type~%")
-	(format t "};~%")
-	(format t "~%")
-
 	(format t "- (id)init {~%")
 	(format t "    if ( ( self = [super init] ) != nil ) {~%")
 	(format t "        rootPath = @~S;~%" from)
 	(format t "        items = [[NSMutableArray alloc] init];~%")
-	(format t "        itemTypes = [[NSMutableArray alloc] init];~%")
 	(format t "        buffers = [[NSMutableArray alloc] init];~%")
 	(format t "        paths = [[NSMutableArray alloc] init];~%")
 	(format t "        lastItem = nil;~%")
@@ -542,18 +511,55 @@
 	(format t "}~%")
 	(format t "~%")
 
+	(format t "- (id)getCurrentObject {~%")
+	(format t "    id object = [items lastObject];~%")
+	(format t "    return object;~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (id)getCurrentObjectParent {~%")
+	(format t "    id object = nil;~%")
+	(format t "    if ( [items count] > 1 ) {~%")
+	(format t "        object = [items objectAtIndex:([items count]-2)];~%")
+	(format t "    }~%")
+	(format t "    return object;~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (void)startObject:(NSObject*)_obj {~%")
+	(format t "    [paths addObject:@\"\"];~%")
+	(format t "    [items addObject:_obj];~%")
+	(format t "}~%")
+	(format t "~%")
+
+	(format t "- (NSObject*)endObject {~%")
+	(format t "    NSObject* object = (NSObject*)[items lastObject];~%")
+	(format t "    [paths removeLastObject];~%")
+	(format t "    [items removeLastObject];~%")
+	(format t "    return object;~%")
+	(format t "}~%")
+
 	(format t "- (void)start:(NSString*)_path {~%")
-	(format t "   NSLog( @\"START %@\", _path );~%")
+	(format t "    id object = [self getCurrentObject];~%")
+	(format t "    if ( object && [object respondsToSelector:@selector(start:path:)] ) {~%")
+	(format t "        [object start:self path:_path];~%")
+	(format t "    }~%")
 	(format t "}~%")
 	(format t "~%")
 
 	(format t "- (void)end:(NSString*)_path {~%")
-	(format t "   NSLog( @\"END   %@\", _path );~%")
+	(format t "    id object = [self getCurrentObjectParent];~%")
+	(format t "    if ( object && [object respondsToSelector:@selector(end:path:)] ) {~%")
+	(format t "        [object end:self path:_path];~%")
+	(format t "    }~%")
 	(format t "}~%")
 	(format t "~%")
 
 	(format t "- (void)data:(NSString*)_path value:(NSString*)_value {~%")
-	(format t "   NSLog( @\"   [%@]: %@\", _path, _value );~%")
+	(format t "    id object = [self getCurrentObject];~%")
+	(format t "    if ( object && [object respondsToSelector:@selector(data:path:value:)] ) {~%")
+	(format t "        [object data:self path:_path value:_value];~%")
+	(format t "    }~%")
 	(format t "}~%")
 	(format t "~%")
 
@@ -563,9 +569,7 @@
 	(format t "    [self pushPath:_name withSeparator:@\"/\"];~%")
 	(format t "    if ( [items count] == 0~%")
 	(format t "    && [rootPath compare:(NSString*)[paths lastObject]] == NSOrderedSame ) {~%")
-	(format t "        [paths addObject:@\"\"];~%")
-	(format t "        [items addObject:[[[~A alloc] init] autorelease]];~%" (objc-name generator root))
-	(format t "        [itemTypes addObject:[NSNumber numberWithInt:struct~A]];~%" (objc-enum-name generator root))
+	(format t "        [self startObject:[[[~A alloc] init] autorelease]];~%" (objc-name generator root))
 	(format t "    }~%")
 	(format t "    [buffers addObject:@\"\"];~%")
 	(format t "    [self start:(NSString*)[paths lastObject]];~%")
@@ -680,13 +684,13 @@
   (labels ((get-basic-convertor (generator name type)
              (case (intern (get-base-type generator type) :keyword)
                (:|integer|
-                   (format nil "(setf ~A (parse-integer value))"
-                                         (objc-local-name generator name)))
+                   (format nil "self.~A = [_value intValue];"
+			   (objc-local-name generator name)))
                (:|boolean|
-                   (format nil "(setf ~A (member (string-downcase value)~%                                              '(\"yes\" \"t\" \"true\" \"1\")~%                                              :test #'equalp))"
-                                         (objc-local-name generator name)))
-               (t  (format nil "(setf ~A value)"
-                                         (objc-local-name generator name)))))
+                   (format nil "self.~A = [_value boolValue];"
+			   (objc-local-name generator name)))
+               (t  (format nil "self.~A = _value;"
+			   (objc-local-name generator name)))))
            (print-assertion (assertion)
              (format nil "~%                                ~A" assertion)))
     (let ((basic (get-basic-convertor generator name type))
@@ -698,98 +702,69 @@
                                (append (mapcar #'print-assertion assertions)
                                        (list (format nil ")~%"))))))))
 
-(defgeneric generate-data-case-line (generator info field))
+(defgeneric generate-data-case-line (generator info field indent))
 (defmethod generate-data-case-line ((generator objc-generator)
                                     (info pg-struct)
-                                    (field pg-field))
+                                    (field pg-field)
+				    indent)
   (with-slots (name from type nested-type) field
     (let ((actual-type (or (first nested-type) type)))
-      (format t "~%      (:|~A| ~A)" from
-                                     (generate-value-convertor generator
-                                                               name
-                                                               actual-type)))))
+      (format t "~%~A" indent)
+      (format t "if ( [_path isEqualToString:@~S] ) {~%" from)
+      (format t "        ~A~%" (generate-value-convertor generator
+							 name
+							 actual-type))
+      (format t "    }"))))
 
-(defun generate-data-handler (generator info simple-types)
-  (with-slots (name) info
-    (format t "(defmethod data progn ((handler sax-handler)")
-    (format t " (item ~A) path value)~%" (objc-name generator name))
-    (format t "  (with-slots (~A) item~%"
-              (let ((indent ""))
-                (apply #'concatenate 'string
-                       (mapcar #'(lambda (field)
-                                   (prog1
-                                       (with-slots (name) field
-                                         (format nil "~A~A"
-                                                     indent
-                                                     (objc-local-name
-                                                        generator name)))
-                                     (setf indent " ")))
-                               simple-types))))
-    (format t "    (case path")
-    (mapc #'(lambda (field)
-              (generate-data-case-line generator info field))
-          simple-types)
-    (format t ")))~%~%")))
-
-(defgeneric generate-start-handler (generator field type))
+(defgeneric generate-start-handler (generator field type indent))
 
 (defmethod generate-start-handler ((generator objc-generator)
                                    field
-                                   (type string))
+                                   (type string) indent)
   (with-slots (from type) field
-    (format t "~%")
-    (format t "      (:|~A|~%" from)
-    (format t "             (push nil paths)~%")
-    (format t "             (push (make-instance '~A) items))"
-            (objc-name generator type))))
+    (format t "~%~A" indent)
+    (format t "if ( [_path isEqualToString:@~S] ) {~%" from)
+    (format t "        [_parser startObject:[[[~A alloc] init] autorelease]];~%" (objc-name generator type))
+    (format t "    }")))
 
 (defmethod generate-start-handler ((generator objc-generator) field
-                                   (type pg-array))
+                                   (type pg-array) indent)
   (declare (ignore field))
   (with-slots (element-types) type
     (mapc #'(lambda (element)
               (with-slots (type) element
-                (generate-start-handler generator element type)))
+                (generate-start-handler generator element type indent))
+	      (setf indent "    else "))
           element-types)))
 
-(defgeneric generate-end-handler (generator field field-type element-type))
+(defgeneric generate-end-handler (generator field
+					    field-type element-type indent))
 
 (defmethod generate-end-handler ((generator objc-generator)
                                    field
                                    (field-type pg-array)
-                                   (element-type pg-array-element))
+                                   (element-type pg-array-element)
+				   indent)
   (declare (ignore field-type))
   (with-slots (name) field
-    (with-slots (from type) element-type
+    (with-slots (from) element-type
       (let ((name (objc-local-name generator name)))
-        (format t "~%")
-        (format t "      (:|~A|~%" from)
-        (format t "             (pop paths)~%")
-        (format t "             (with-slots (~A) item~%" name)
-        (format t "               (setf ~A~%" name)
-        (format t "                     (append ~A (list (pop items))))))"
-                name)))))
-
-#|
-(defmethod end progn ((handler sax-handler) (item pg-field) path)
-  (with-slots (paths items) handler
-    (case path
-      (:|/array|
-             (pop paths)
-             (with-slots (nested-type) item
-               (setf nested-type
-                     (append nested-type (list (pop items)))))))))
-
-|#
+	(format t "~%~A" indent)
+	(format t "if ( [_path isEqualToString:@~S] ) {~%" from)
+	(format t "        [~A addObject:[_parser endObject]];~%" name)
+	(format t "    }")))))
 
 (defmethod generate-end-handler ((generator objc-generator) field
                                    (field-type pg-array)
-                                   (element-type (eql nil)))
+                                   (element-type (eql nil))
+				   indent)
   (with-slots (element-types) field-type
     (mapc #'(lambda (element)
               (generate-end-handler generator field
                                     field-type
-                                    element))
+                                    element
+				    indent)
+	      (setf indent "    else "))
           element-types)))
 
 (defun generate-element-handler (generator info complex-types)
@@ -820,22 +795,76 @@
           complex-types)
     (format t ")))~%~%")))
 
-
 (defgeneric generate-data-type-parser (generator name info))
 (defmethod generate-data-type-parser ((generator objc-generator)
-                                      name (info pg-struct))
-  (format t ";;; =================================================================~%" )
-  (format t ";;; ~A struct~%" (objc-name generator name))
-  (format t ";;; =================================================================~%" )
-  (with-slots (struct-fields) info
-    (let ((simples (remove-if-not #'(lambda (field)
-                                      (is-simple generator field))
-                                  struct-fields))
-          (complexes (remove-if #'(lambda (field)
-                                    (is-simple generator field))
-                                struct-fields)))
-      (when simples (generate-data-handler generator info simples))
-      (when complexes (generate-element-handler generator info complexes)))))
+				      name (info pg-struct))
+
+  (with-slots (reader-class) generator
+
+    (with-slots (struct-fields) info
+      (let ((simples (remove-if-not #'(lambda (field)
+					(is-simple generator field))
+				    struct-fields))
+	    (complexes (remove-if #'(lambda (field)
+				      (is-simple generator field))
+				  struct-fields))
+	    (name (objc-name generator name)))
+	(format t "@interface ~A (~A_HelperFunctions)~%" name reader-class)
+	(when simples
+	  (format t "- (void)data:(~A*)_parser path:(NSString*)_path value:(NSString*)_value;~%" reader-class))
+	(when complexes
+	  (format t "- (void)start:(~A*)_parser path:(NSString*)_path;~%" reader-class)
+	  (format t "- (void)end:(~A*)_parser path:(NSString*)_path;~%" reader-class))
+	(format t "@end~%")
+	(format t "~%")
+
+	(format t "@implementation ~A (~A_HelperFunctions)~%"
+		  name reader-class)
+	(when simples
+	  (format t "- (void)data:(~A*)_parser path:(NSString*)_path value:(NSString*)_value {" reader-class)
+	  (let ((indent "    "))
+	    (mapc #'(lambda (field)
+		      (with-slots (type nested-type from) field
+			(generate-data-case-line generator
+						 info
+						 field
+						 indent))
+		      (setf indent "    else "))
+		  simples))
+	  (format t "~%")
+	  (format t "}~%")
+	  (format t "~%"))
+	(when complexes
+	  (format t "- (void)start:(~A*)_parser path:(NSString*)_path {" reader-class)
+	  (let ((indent "    "))
+	    (mapc #'(lambda (field)
+		      (with-slots (type nested-type from) field
+			(generate-start-handler generator
+						field
+						(or (first nested-type)
+						    type)
+						indent))
+		      (setf indent "    else "))
+		  complexes))
+	  (format t "~%")
+	  (format t "}~%")
+	  (format t "~%")
+	  (format t "- (void)end:(~A*)_parser path:(NSString*)_path {" reader-class)
+	  (let ((indent "    "))
+	    (mapc #'(lambda (field)
+		      (with-slots (type nested-type from) field
+			(generate-end-handler generator
+					      field
+					      (or (first nested-type)
+						  type)
+					      nil
+					      indent))
+		      (setf indent "    else "))
+		  complexes))
+	  (format t "~%")
+	  (format t "}~%"))
+	(format t "@end~%")
+	(format t "~%")))))
 
 (defun objc-generator (generator-info output-directory &optional args)
   (let* ((option-list '(("prefix" :optional)
