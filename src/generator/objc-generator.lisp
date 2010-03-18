@@ -12,36 +12,46 @@
 		   :initform (error "Must have generator info"))
    (output-directory :initarg :output-directory :initform #P".")
    (prefix :initform "" :initarg :prefix)
-   (types-package :initarg :types-package)
-   (reader-package :initarg :reader-package)))
+   (types-file :initarg :types-file :initform "types")
+   (reader-class :initarg :reader-class :initform "reader")))
 
 (defun objc-make-filename (generator base type)
   (with-slots (output-directory) generator
     (merge-pathnames (make-pathname :name base :type type) output-directory)))
 
 (defun get-objc-types-header (generator)
-  (objc-make-filename generator "types" "h"))
+  (with-slots (types-file) generator
+    (objc-make-filename generator types-file "h")))
 (defun get-objc-types-impl (generator)
-  (objc-make-filename generator "types" "m"))
+  (with-slots (types-file) generator
+    (objc-make-filename generator types-file "m")))
 (defun get-objc-reader-header (generator)
-  (objc-make-filename generator "reader" "h"))
+  (with-slots (reader-class) generator
+    (objc-make-filename generator reader-class "h")))
 (defun get-objc-reader-impl (generator)
-  (objc-make-filename generator "reader" "m"))
+  (with-slots (reader-class) generator
+    (objc-make-filename generator reader-class "m")))
 
 (defgeneric objc-field-type (generator field field-type))
 (defgeneric objc-field-initform (generator field field-type))
 
+(defun string-uncapitalize (string)
+  (concatenate 'string (string-downcase (subseq string 0 1))
+	               (subseq string 1)))
+
 (defun objc-local-name (generator name)
   (declare (ignore generator))
-  (map 'string #'(lambda (char)
-                   (if (member char '(#\Space #\Tab))
-                       #\_
-                       char))
-       name))
+  (string-uncapitalize (remove-if #'(lambda (char)
+				      (member char '(#\Space #\Tab)
+					      :test #'eql))
+				  (string-capitalize name))))
 
 (defun objc-name (generator name)
   (with-slots (prefix) generator
-    (objc-local-name generator (concatenate 'string prefix name))))
+    (remove-if #'(lambda (char)
+		   (member char '(#\Space #\Tab) :test #'eql))
+	       (concatenate 'string (string-upcase prefix)
+			            (string-capitalize name)))))
 
 (defun objc-determine-field-type (generator field)
   (declare (ignore generator))
@@ -51,7 +61,6 @@
             (= (length nested-type) 1)) :|pg-array|)
       ((slot-boundp field 'type) (intern type :keyword))
       (t :|string|))))
-
 
 ;;; =====================================================
 ;;; =====================================================
@@ -123,33 +132,6 @@
                                 (field-type (eql :|pg-struct|)))
   (declare (ignore generator field field-type))
   "")
-
-;;; =====================================================
-;;; =====================================================
-
-(defun generate-defpackage (generator info)
-  (with-slots (types-package reader-package) generator
-    (format t "(defpackage :~A~%" types-package)
-    (format t "  (:use :common-objc)~%")
-    (format t "  (:export")
-    (with-slots (parsed-types) info
-      (let ((indent " "))
-        (mapc #'(lambda (struct)
-                  (format t indent)
-                  (with-slots (name struct-fields) struct
-                    (format t "#:~A" (objc-name generator name))
-                    (mapc #'(lambda (field)
-                              (with-slots (name) field
-                                (format t "~%             #:~A"
-                                        (objc-local-name generator name))))
-                          struct-fields))
-                  (setf indent "~%           "))
-            parsed-types)
-	(when (equalp types-package reader-package)
-	  (format t indent)
-	  (format t "#:parse"))))
-    (format t "))~%~%")
-    (format t "(in-package :~A)~%" types-package)))
 
 ;;; =====================================================
 ;;; =====================================================
@@ -361,9 +343,9 @@
 		(format t "~%@synthesize ~A;" (objc-local-name generator
 							       name))))
 	  struct-fields))
-  (format t "~%~%")
+  (format t "~%")
   (format t "- (id)init {~%")
-  (format t "    if ( ( self = [super init] ) != nil ) {")
+  (format t "    if ( ( self = [super init] ) != nil ) {~%")
   (with-slots (struct-fields) info
     (mapc #'(lambda (field)
 	      (with-slots (type nested-type) field
@@ -376,6 +358,7 @@
   (format t "    return self;~%")
   (format t "}~%")
   (format t "~%")
+
   (format t "- (void)dealloc {")
   (with-slots (struct-fields) info
     (mapc #'(lambda (field)
@@ -393,104 +376,120 @@
 
 ;;; ========================================================
 
-(defun generate-cxml-boilerplate (generator)
-  (with-slots (types-package reader-package) generator
-    (unless (equalp types-package reader-package)
-      (format t "(defpackage :~A~%" reader-package)
-      (format t "  (:use :~A :common-objc)~%" types-package)
-      (format t "  (:export #:parse))~%~%"))
-    (format t "(in-package :~A)~%" reader-package))
+(defun generate-nsxmlparser-header-boilerplate (generator)
+  (with-slots (reader-class) generator
+    (let ((fields '("NSString* rootPath"
+		    "NSMutableArray* items"
+		    "NSMutableArray* buffers"
+		    "NSMutableArray* paths"
+		    "NSObject* lastItem")))
+      (format t "#import <Foundation/Foundation.h>~%")
+      (format t "~%")
+      (format t "@interface ~A : NSObject <NSXMLParserDelegate> {~%"
+	        reader-class)
+      (mapc #'(lambda (field)
+		(format t "  ~A;~%" field))
+	    fields)
+      (format t "}~%")
+      (format t "~%")
+      (mapc #'(lambda (field)
+		(format t "@property (nonatomic, retain) ~A;~%" field))
+	    fields)
+      (format t "~%")
+      (format t "+ (id)parseFromURL:(NSURL*)_url;~%")
+      (format t "+ (id)parseFromURL:(NSURL*)_url withRootPath:(NSString*)_rootPath;~%")
+      (format t "+ (id)parseFromData:(NSData*)_data;~%")
+      (format t "+ (id)parseFromData:(NSData*)_data withRootPath:(NSString*)_rootPath;~%")
+      (format t "~%")
+      (format t "@end~%"))))
 
-  (write-string "
-;;; =================================================================
-;;; boiler-plate cxml handler stuff
-;;; =================================================================
-(defclass sax-handler (sax:default-handler)
-  ((root-path :initform nil :initarg :root-path)
-   (root-type :initform nil :initarg :root-type)
-   (items :initform nil)
-   (buffers :initform nil)
-   (paths :initform nil)
-   (last-item :initform nil)))
+(defun generate-nsxmlparser-impl-boilerplate (generator)
+  (with-slots (types-file reader-class generator-info) generator
+    (with-slots (root) generator-info
+      (let ((fields '("rootPath" "items" "buffers" "paths" "lastItem")))
+	(format t "#import \"~A.h\"~%" types-file)
+	(format t "#import \"~A.h\"~%" reader-class)
+	(format t "~%")
+	(format t "@implementation ~A~%" reader-class)
+	(format t "~%")
+	(mapc #'(lambda (field)
+		  (format t "@synthesize ~A;~%" field))
+	      fields)
+	(format t "~%")
 
-(defmethod initialize-instance :after ((handler sax-handler) &key)
-  (with-slots (root-path) handler
-    (setf root-path (intern root-path :keyword))))
+	(format t "- (id)init {~%")
+	(format t "    if ( ( self = [super init] ) != nil ) {~%")
+	(format t "        rootPath = @~S;~%" root)
+	(format t "        items = [[NSMutableArray alloc] init];~%")
+	(format t "        buffers = [[NSMutableArray alloc] init];~%")
+	(format t "        paths = [[NSMutableArray alloc] init];~%")
+	(format t "        lastItem = nil;~%")
+	(format t "    }~%")
+	(format t "    return self;~%")
+	(format t "}~%")
+	(format t "~%")
 
-(defgeneric start (handler item path)
-  (:documentation \"This is called at the opening of each xml tag\")
-  (:method-combination progn)
-  (:method progn (handler item path)
-           (declare (ignore handler item path))))
+	(format t "+ (id)reader {~%")
+	(format t "    return [[[~A alloc] init] autorelease];~%" reader-class)
+	(format t "}~%")
+	(format t "~%")
 
-(defgeneric data (handler item path value)
-  (:documentation \"This is called with attributes and text contents of tags\")
-  (:method-combination progn)
-  (:method progn (handler item path value)
-           (declare (ignore handler item path value))))
+	(format t "- (void)dealloc {~%")
+	(mapc #'(lambda (field)
+		  (format t "    [~A release];~%" field))
+	      (reverse fields))
+	(format t "    [super dealloc];~%")
+	(format t "}~%")
+	(format t "~%")
 
-(defgeneric end (handler item path)
-  (:documentation \"This is called at the closing of each xml tag\")
-  (:method-combination progn)
-  (:method progn (handler item path)
-           (declare (ignore handler item path))))
+	(format t "+ (id)parse:(NSXMLParser*)_parser withRootPath:(NSString*)_rootPath {~%")
+	(format t "    ~A* reader = [~:*~A reader];~%" reader-class)
+	(format t "~%")
+	(format t "    if ( _rootPath != nil ) {~%")
+	(format t "        reader.rootPath = _rootPath;~%")
+	(format t "    }~%")
+	(format t "~%")
+	(format t "    [_parser setDelegate:reader];~%")
+	(format t "~%")
+	(format t "    if ( [_parser parse] ) {~%")
+	(format t "        return reader.lastItem;~%")
+	(format t "    }~%")
+	(format t "    else {~%")
+	(format t "        return nil;~%")
+	(format t "    }~%")
+	(format t "}~%")
+	(format t "~%")
 
-(defun add-to-path (initial separator new)
-  (intern (concatenate 'string (when initial (symbol-name initial))
-                               separator
-                               new)
-          :keyword))
+	(format t "+ (id)parseFromURL:(NSURL*)_url {~%")
+	(format t "    NSXMLParser* parser = [[NSXMLParser alloc] initWithContentsOfURL:_url];~%")
+	(format t "    return [~A parse:[parser autorelease] withRootPath:nil];~%"
+		  reader-class)
+	(format t "}~%")
+	(format t "~%")
 
-(defun push-path (handler separator new)
-  (with-slots (paths) handler
-    (push (add-to-path (first paths) separator new) paths)))
+	(format t "+ (id)parseFromURL:(NSURL*)_url withRootPath:(NSString*)_rootPath {~%")
+	(format t "    NSXMLParser* parser = [[NSXMLParser alloc] initWithContentsOfURL:_url];~%")
+	(format t "    return [~A parse:[parser autorelease] withRootPath:_rootPath];~%"
+		  reader-class)
+	(format t "}~%")
+	(format t "~%")
 
-(defmethod sax:start-element ((handler sax-handler)
-                              namespace-uri
-                              local-name
-                              qname
-                              attributes)
-  (declare (ignore namespace-uri qname))
-  (with-slots (root-path root-type paths items buffers) handler
-    (push-path handler \"/\" local-name)
-    (when (and (null items) (eql (first paths) root-path))
-      (push nil paths)
-      (push (make-instance root-type) items))
-    (push nil buffers)
-    (start handler (first items) (first paths))
-    (dolist (attr attributes)
-      (with-accessors ((attr-name sax:attribute-local-name)
-                       (attr-value sax:attribute-value)) attr
-        (data handler (first items)
-                      (add-to-path (first paths) \"@\" attr-name)
-                      attr-value)))))
+	(format t "+ (id)parseFromData:(NSData*)_data {~%")
+	(format t "    NSXMLParser* parser = [[NSXMLParser alloc] initWithData:_data];~%")
+	(format t "    return [~A parse:[parser autorelease] withRootPath:nil];~%"
+		  reader-class)
+	(format t "}~%")
+	(format t "~%")
 
-(defmethod sax:characters ((handler sax-handler) data)
-  (with-slots (buffers) handler
-    (push data (first buffers))))
+	(format t "+ (id)parseFromData:(NSData*)_data withRootPath:(NSString*)_rootPath {~%")
+	(format t "    NSXMLParser* parser = [[NSXMLParser alloc] initWithData:_data];~%")
+	(format t "    return [~A parse:[parser autorelease] withRootPath:_rootPath];~%"
+		  reader-class)
+	(format t "}~%")
+	(format t "~%")
 
-(defmethod sax:end-element ((handler sax-handler)
-                            namespace-uri
-                            local-name
-                            qname)
-  (declare (ignore namespace-uri local-name qname))
-  (with-slots (root-path items paths buffers last-item) handler
-    (let ((text-contents (apply #'concatenate 'string
-                                              (nreverse (pop buffers)))))
-      (data handler (first items)
-                    (add-to-path (first paths) \"/\" \".\")
-                    text-contents))
-    (pop paths)
-    (when (eql (first paths) root-path)
-      (setf last-item (pop items)))
-    (end handler (second items) (first paths))))
-
-(defmethod sax:end-document ((handler sax-handler))
-  (with-slots (last-item) handler
-    last-item))
-
-"))
-
+	(format t "~%")
+	(format t "@end~%")))))
 
 (defmethod generate-parse-function (generator)
   (with-slots (generator-info) generator
@@ -726,14 +725,22 @@
       (when complexes (generate-element-handler generator info complexes)))))
 
 (defun objc-generator (generator-info output-directory &optional args)
-  (let* ((option-list '(("prefix" :optional)))
+  (let* ((option-list '(("prefix" :optional)
+			("types-file" :optional)
+			("reader-class" :optional)))
          (options (nth-value 1 (getopt:getopt args option-list)))
          (prefix (or (cdr (assoc "prefix" options :test #'equal))
-                     "")))
+                     ""))
+	 (types-file (or (cdr (assoc "types-file" options :test #'equalp))
+			 "Types"))
+         (reader-class (or (cdr (assoc "reader-class" options :test #'equal))
+			   "Reader")))
     (let ((generator (make-instance 'objc-generator
                                     :generator-info generator-info
                                     :output-directory output-directory
-                                    :prefix prefix)))                         
+                                    :prefix prefix
+				    :types-file types-file
+				    :reader-class reader-class)))
       (let ((objc-types-header-filename (get-objc-types-header generator))
 	    (objc-types-impl-filename   (get-objc-types-impl generator))
             (objc-reader-header-filename (get-objc-reader-header generator))
@@ -761,7 +768,8 @@
 					   :direction :output
 					   :if-exists :supersede
 					   :if-does-not-exist :create)
-	  (format t "#import \"types.h\"~%")
+	  (with-slots (types-file) generator
+	    (format t "#import \"~A.h\"~%" types-file))
 	  (format t "~%")
           (with-slots (parsed-types) generator-info
             (mapc #'(lambda (info)
@@ -770,20 +778,18 @@
 					       info))
                   parsed-types)))
 
-#|
-        (with-open-file (*standard-output* objc-reader-filename
+        (with-open-file (*standard-output* objc-reader-header-filename
                                            :direction :output
                                            :if-exists :supersede
                                            :if-does-not-exist :create)
-          (generate-cxml-boilerplate generator)
-          (generate-parse-function generator)
-          (with-slots (parsed-types) generator-info
-            (mapc #'(lambda (info)
-                      (generate-data-type-parser generator
-                                                 (slot-value info 'name)
-                                                 info))
-                  parsed-types)))
-|#
+	  (generate-nsxmlparser-header-boilerplate generator))
+
+        (with-open-file (*standard-output* objc-reader-impl-filename
+                                           :direction :output
+                                           :if-exists :supersede
+                                           :if-does-not-exist :create)
+	  (generate-nsxmlparser-impl-boilerplate generator))
+
         (list objc-types-header-filename
 	      objc-types-impl-filename
 	      objc-reader-header-filename
