@@ -1,0 +1,10 @@
+<parser_generator root="menu" from="/breakfast_menu">
+  <struct name="menu">
+    <field type="integer" name="version" from="@version" default="1" />
+    <field name="menu items">
+      <array>
+	<array_element type="string" from="/food/name/." />
+      </array>
+    </field>
+  </struct>
+</parser_generator>
