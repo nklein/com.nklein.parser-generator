@@ -345,7 +345,7 @@
 	  struct-fields))
   (format t "~%")
   (format t "- (id)init {~%")
-  (format t "    if ( ( self = [super init] ) != nil ) {~%")
+  (format t "    if ( ( self = [super init] ) != nil ) {")
   (with-slots (struct-fields) info
     (mapc #'(lambda (field)
 	      (with-slots (type nested-type) field
@@ -579,6 +579,7 @@
 	(format t "             value:(NSString*)[_attributes objectForKey:attrib]];~%")
 	(format t "    }~%")
 	(format t "}~%")
+	(format t "~%")
 
 	(format t "- (void)parser:(NSXMLParser*)_parser didEndElement:(NSString*)_name~%")
 	(format t "        namespaceURI:(NSString*)_namespaceURI~%")
@@ -598,6 +599,7 @@
 	(format t "~%")
 	(format t "    [self end:path];~%")
 	(format t "}~%")
+	(format t "~%")
 
 	(format t "-(void)parser:(NSXMLParser*)_parser foundCharacters:(NSString*)_chars {~%")
 	(format t "    NSString* current = (NSString*)[buffers lastObject];~%")
@@ -818,9 +820,10 @@
 	(format t "@end~%")
 	(format t "~%")
 
-	(format t "@implementation ~A (~A_HelperFunctions)~%"
+	(format t "@implementation ~A (~A_HelperFunctions)"
 		  name reader-class)
 	(when simples
+	  (format t "~%")
 	  (format t "- (void)data:(~A*)_parser path:(NSString*)_path value:(NSString*)_value {" reader-class)
 	  (let ((indent "    "))
 	    (mapc #'(lambda (field)
@@ -832,9 +835,9 @@
 		      (setf indent "    else "))
 		  simples))
 	  (format t "~%")
-	  (format t "}~%")
-	  (format t "~%"))
+	  (format t "}~%"))
 	(when complexes
+	  (format t "~%")
 	  (format t "- (void)start:(~A*)_parser path:(NSString*)_path {" reader-class)
 	  (let ((indent "    "))
 	    (mapc #'(lambda (field)
