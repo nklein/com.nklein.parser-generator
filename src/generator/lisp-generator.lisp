@@ -312,13 +312,6 @@
                       (get-base-type generator extends)))
       (t type))))
 
-(defun is-simple (generator field)
-  (with-slots (type nested-type) field
-    (and (not nested-type)
-         (member (get-base-type generator type)
-                 '("string" "integer" "boolean")
-                 :test #'equalp))))
-
 (defgeneric get-assertions (generator type-or-info))
 
 (defmethod get-assertions (generator (info pg-array))
@@ -347,27 +340,13 @@
     (when parsed-type
       (get-assertions generator parsed-type))))
 
-(defun generate-value-convertor (generator name type)
-  (labels ((get-basic-convertor (generator name type)
-             (case (intern (get-base-type generator type) :keyword)
-               (:|integer|
-                   (format nil "(setf ~A (parse-integer value))"
-                                         (lisp-local-name generator name)))
-               (:|boolean|
-                   (format nil "(setf ~A (member (string-downcase value)~%                                              '(\"yes\" \"t\" \"true\" \"1\")~%                                              :test #'equalp))"
-                                         (lisp-local-name generator name)))
-               (t  (format nil "(setf ~A value)"
-                                         (lisp-local-name generator name)))))
-           (print-assertion (assertion)
-             (format nil "~%                                ~A" assertion)))
-    (let ((basic (get-basic-convertor generator name type))
-          (assertions (get-assertions generator type)))
-      (if (null assertions)
-          (format nil "~A" basic)
-          (apply #'concatenate 'string
-                               (format nil "(prog1 ~A" basic)
-                               (append (mapcar #'print-assertion assertions)
-                                       (list (format nil ")~%"))))))))
+(defun generate-value-convertor (generator type)
+  (case (intern (get-base-type generator type) :keyword)
+    (:|integer|
+      (format nil "(parse-integer value)"))
+    (:|boolean|
+      (format nil "(member (string-downcase value)~%                                              '(\"yes\" \"t\" \"true\" \"1\")~%                                              :test #'equalp)"))
+    (t  (format nil "value"))))
 
 (defgeneric generate-data-case-line (generator info field))
 (defmethod generate-data-case-line ((generator lisp-generator)
@@ -375,10 +354,36 @@
                                     (field pg-field))
   (with-slots (name from type nested-type) field
     (let ((actual-type (or (first nested-type) type)))
-      (format t "~%      (:|~A| ~A)" from
-                                     (generate-value-convertor generator
-                                                               name
-                                                               actual-type)))))
+      (format t "~%      (:|~A| (setf ~A ~A))" from
+	      (lisp-local-name generator name)
+	      (generate-value-convertor generator actual-type)))))
+
+(defmethod generate-data-case-line ((generator lisp-generator)
+                                    (info pg-struct)
+                                    (field cons))
+  (let ((field (cdr field))
+	(element (car field)))
+    (with-slots (name) field
+      (with-slots (from type) element
+	(format t "~%      (:|~A| (setf ~A (append ~:*~A (list ~A))))"
+		from (lisp-local-name generator name)
+		(generate-value-convertor generator type))))))
+
+(defgeneric gather-field-names (generator spot))
+
+(defmethod gather-field-names (generator (spot cons))
+  (cond
+    ((and (listp spot)
+	  (listp (cdr spot)))
+                (apply #'concatenate 'list
+		       (mapcar #'(lambda (ss)
+				   (gather-field-names generator ss))
+			       spot)))
+    (t (gather-field-names generator (cdr spot)))))
+
+(defmethod gather-field-names (generator (spot pg-field))
+  (with-slots (name) spot
+    (list (lisp-local-name generator name))))
 
 (defun generate-data-handler (generator info simple-types)
   (with-slots (name) info
@@ -387,15 +392,13 @@
     (format t "  (with-slots (~A) item~%"
               (let ((indent ""))
                 (apply #'concatenate 'string
-                       (mapcar #'(lambda (field)
+                       (mapcar #'(lambda (field-name)
                                    (prog1
-                                       (with-slots (name) field
-                                         (format nil "~A~A"
-                                                     indent
-                                                     (lisp-local-name
-                                                        generator name)))
+				       (format nil "~A~A" indent field-name)
                                      (setf indent " ")))
-                               simple-types))))
+			       (remove-duplicates
+				   (gather-field-names generator simple-types)
+				   :test #'equalp)))))
     (format t "    (case path")
     (mapc #'(lambda (field)
               (generate-data-case-line generator info field))
@@ -405,8 +408,16 @@
 (defgeneric generate-start-handler (generator field type))
 
 (defmethod generate-start-handler ((generator lisp-generator)
+				   (field pg-field)
+				   (type (eql nil)))
+  (declare (ignore type))
+  (with-slots (type nested-type) field
+    (generate-start-handler generator field (or (first nested-type) type))))
+
+(defmethod generate-start-handler ((generator lisp-generator)
                                    field
                                    (type string))
+  (format t ";; XXX: * string~%")
   (with-slots (from type) field
     (format t "~%")
     (format t "      (:|~A|~%" from)
@@ -414,9 +425,21 @@
     (format t "             (push (make-instance '~A) items))"
             (lisp-name generator type))))
 
+(defmethod generate-start-handler ((generator lisp-generator)
+                                   (field cons)
+				   type)
+  (let ((element (car field)))
+    (with-slots (from type) element
+      (format t "~%")
+      (format t "      (:|~A|~%" from)
+      (format t "             (push nil paths)~%")
+      (format t "             (push (make-instance '~A) items))"
+	      (lisp-name generator type)))))
+
 (defmethod generate-start-handler ((generator lisp-generator) field
                                    (type pg-array))
   (declare (ignore field))
+  (format t ";; XXX: * array~%")
   (with-slots (element-types) type
     (mapc #'(lambda (element)
               (with-slots (type) element
@@ -424,6 +447,23 @@
           element-types)))
 
 (defgeneric generate-end-handler (generator field field-type element-type))
+
+(defmethod generate-end-handler ((generator lisp-generator)
+				   (field-or-cons pg-field)
+                                   (field-type (eql nil))
+                                   (element-type (eql nil)))
+  (with-slots (type nested-type) field-or-cons
+    (generate-end-handler generator field-or-cons
+			  (or (first nested-type) type)
+			  nil)))
+
+(defmethod generate-end-handler ((generator lisp-generator)
+				   (field-or-cons cons)
+                                   (field-type (eql nil))
+                                   (element-type (eql nil)))
+  (let ((field (cdr field-or-cons)))
+    (with-slots (nested-type) field
+      (generate-end-handler generator field (first nested-type) nil))))
 
 (defmethod generate-end-handler ((generator lisp-generator)
                                    field
@@ -440,18 +480,6 @@
         (format t "               (setf ~A~%" name)
         (format t "                     (append ~A (list (pop items))))))"
                 name)))))
-
-#|
-(defmethod end progn ((handler sax-handler) (item pg-field) path)
-  (with-slots (paths items) handler
-    (case path
-      (:|/array|
-             (pop paths)
-             (with-slots (nested-type) item
-               (setf nested-type
-                     (append nested-type (list (pop items)))))))))
-
-|#
 
 (defmethod generate-end-handler ((generator lisp-generator) field
                                    (field-type pg-array)
@@ -470,11 +498,8 @@
     (format t "  (declare (ignore item))~%")
     (format t "  (with-slots (paths items) handler~%")
     (format t "    (case path")
-    (mapc #'(lambda (field)
-              (with-slots (type nested-type) field
-                (generate-start-handler generator
-                                        field
-                                        (or (first nested-type) type))))
+    (mapc #'(lambda (field-or-cons)
+	      (generate-start-handler generator field-or-cons nil))
           complex-types)
     (format t ")))~%")
     (format t "~%")
@@ -482,15 +507,75 @@
     (format t " (item ~A) path)~%" (lisp-name generator name))
     (format t "  (with-slots (paths items) handler~%")
     (format t "    (case path")
-    (mapc #'(lambda (field)
-              (with-slots (type nested-type) field
-                (generate-end-handler generator
-                                      field
-                                      (or (first nested-type) type)
-                                      nil)))
+    (mapc #'(lambda (field-or-cons)
+	      (generate-end-handler generator field-or-cons nil nil))
           complex-types)
     (format t ")))~%~%")))
 
+(defun is-from-string (from)
+  (or (eql (char from (1- (length from))) #\.)
+      (find #\@ from)))
+
+(defgeneric gather-simples (generator possible-simple))
+(defmethod gather-simples (generator (possible-simple list))
+  (apply #'concatenate 'list
+	 (mapcar #'(lambda (possibility)
+		     (gather-simples generator possibility))
+		 possible-simple)))
+
+(defmethod gather-simples (generator (possible-simple pg-struct))
+  (with-slots (struct-fields) possible-simple
+    (gather-simples generator struct-fields)))
+
+(defmethod gather-simples (generator (possible-simple pg-field))
+  (with-slots (from nested-type) possible-simple
+    (cond
+      (nested-type (mapcar #'(lambda (subtype)
+			       (when subtype
+				 (cons subtype possible-simple)))
+			   (gather-simples generator nested-type)))
+      ((is-from-string from) (list possible-simple))
+      (t nil))))
+
+(defmethod gather-simples (generator (possible-simple pg-array))
+  (with-slots (element-types) possible-simple
+    (gather-simples generator element-types)))
+
+(defmethod gather-simples (generator (possible-simple pg-array-element))
+  (with-slots (from) possible-simple
+    (when (is-from-string from)
+      (list possible-simple))))
+
+(defgeneric gather-complexes (generator possible-simple))
+(defmethod gather-complexes (generator (possible-simple list))
+  (apply #'concatenate 'list
+	 (mapcar #'(lambda (possibility)
+		     (gather-complexes generator possibility))
+		 possible-simple)))
+
+(defmethod gather-complexes (generator (possible-simple pg-struct))
+  (with-slots (struct-fields) possible-simple
+    (gather-complexes generator struct-fields)))
+
+(defmethod gather-complexes (generator (possible-simple pg-field))
+  (with-slots (from nested-type) possible-simple
+    (cond
+      (nested-type (mapcar #'(lambda (subtype)
+			       (when subtype
+				 (cons subtype possible-simple)))
+			   (gather-complexes generator nested-type)))
+      ((is-from-string from) nil)
+      (t (list possible-simple)))))
+
+(defmethod gather-complexes (generator (possible-simple pg-array))
+  (with-slots (element-types) possible-simple
+    (gather-complexes generator element-types)))
+
+(defmethod gather-complexes (generator (possible-simple pg-array-element))
+  (with-slots (from) possible-simple
+    (cond
+      ((is-from-string from) nil)
+      (t (list possible-simple)))))
 
 (defgeneric generate-data-type-parser (generator name info))
 (defmethod generate-data-type-parser ((generator lisp-generator)
@@ -498,15 +583,10 @@
   (format t ";;; =================================================================~%" )
   (format t ";;; ~A struct~%" (lisp-name generator name))
   (format t ";;; =================================================================~%" )
-  (with-slots (struct-fields) info
-    (let ((simples (remove-if-not #'(lambda (field)
-                                      (is-simple generator field))
-                                  struct-fields))
-          (complexes (remove-if #'(lambda (field)
-                                    (is-simple generator field))
-                                struct-fields)))
-      (when simples (generate-data-handler generator info simples))
-      (when complexes (generate-element-handler generator info complexes)))))
+  (let ((simples (gather-simples generator info))
+	(complexes (gather-complexes generator info)))
+    (when simples (generate-data-handler generator info simples))
+    (when complexes (generate-element-handler generator info complexes))))
 
 (defun lisp-generator (generator-info output-directory &optional args)
   (let* ((option-list '(("prefix" :optional)
