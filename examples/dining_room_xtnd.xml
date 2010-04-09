@@ -1,0 +1,31 @@
+<parser_generator root="dining room" from="/dining-room">
+<!--
+    Note: the extends feature is not yet implemented!
+    So, I have purposely broken this XML so you cannot
+    Run it.
+-->
+  <break-the-xml unclosed-attribute=">
+
+  <struct name="furniture">
+    <field type="string"  name="wood"     from="@wood" />
+    <field type="string"  name="price"    from="/price/."/>
+  </struct>
+
+  <struct name="table" extends="furniture">
+    <field type="string"  name="shape"    from="@type" />
+  </struct>
+
+  <struct name="chair" extends="furniture">
+    <field type="integer" name="quantity" from="/quantity/." />
+  </struct>
+
+  <struct name="dining room">
+    <field type="string" name="manufacturer" from="/manufacturer/." />
+    <field name="pieces">
+      <array>
+	<array_element type="table" from="/table" />
+	<array_element type="chair" from="/chair" />
+      </array>
+    </field>
+  </struct>
+</parser_generator>

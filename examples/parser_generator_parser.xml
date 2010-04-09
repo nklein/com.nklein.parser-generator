@@ -10,6 +10,11 @@
     <field name="from" type="string" from="@from" />
   </struct>
 
+<!--
+    Names with spaces in them (like "min elements" below) will
+    get hyphenated in Lisp ("min-elements") and Camel-cased in
+    Objective-C ("minElements").
+-->
   <struct name="array">
     <!-- currently, the min-elements and max-elements of arrays
 	 are not enforced by any of the generators. -->

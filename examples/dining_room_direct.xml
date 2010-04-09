@@ -1,0 +1,19 @@
+<parser_generator root="dining room" from="/dining-room">
+  <struct name="table">
+    <field type="string"  name="shape"    from="@type" />
+    <field type="string"  name="wood"     from="@wood" />
+    <field type="string"  name="price"    from="/price/."/>
+  </struct>
+
+  <struct name="chair">
+    <field type="string"  name="wood"     from="@wood" />
+    <field type="integer" name="quantity" from="/quantity/." />
+    <field type="string"  name="price"    from="/price/."/>
+  </struct>
+
+  <struct name="dining room">
+    <field type="string" name="manufacturer" from="/manufacturer/." />
+    <field type="table"  name="table" from="/table" />
+    <field type="chair"  name="chair" from="/chair" />
+  </struct>
+</parser_generator>
