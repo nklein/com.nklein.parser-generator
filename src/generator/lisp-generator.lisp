@@ -1,3 +1,14 @@
+;;; ==============================================================
+;;; This file is a bit unwieldy.  I'm sorry.
+;;; You will probably find it easier to start at the other end
+;;; of the file in the (LISP-GENERATOR ...) function and work
+;;; your way backward.
+;;;
+;;; Note: I made liberal use of CLOS (DEFMETHOD ...) stuff here
+;;; to generate different portions based on the type of the element
+;;; (or in some cases, the type of the element and its subelement).
+;;; ==============================================================
+
 (defpackage :com.nklein.parser-generator.lisp-generator
   (:use :com.nklein.parser-generator.reader
 	:com.nklein.parser-generator.types
