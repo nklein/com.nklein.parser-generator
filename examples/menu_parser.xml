@@ -1,15 +1,78 @@
 <parser_generator root="menu" from="/breakfast_menu">
-  <struct name="menu item">
+<!--
+This is the parser generator file for the accompanying menu.xml
+file.  That file has a top-level tag <breakfast_menu>.  Under it
+are a series of <food> tags.  Each <food> entry contains
+a <name>, <price>, <description>, and <calories> tag.
+
+We want to turn it into an array of Food structs.  We want to
+pull the text-contents out of each of the <food> subtags into
+appropriately named fields.  Further, we want the calories to
+be parsed as an integer.
+
+You can see the "root" attribute of the <parser_generator>
+tag specifies that we want our parser to return a "menu"
+struct that it gets "from" the <breakfast_menu> tag at the
+top level of the XML.  If the XML had another layer in it
+or something like:  <menu> <breakfast_menu> <food> ..., then
+we could specify the "from" as "/menu/breakfast_menu".
+-->
+
+<!--
+When we're trying to parse something of type "food", we will
+look for the contents of subtags <name>, <price>, <description>,
+and <calories>.  We will give the fields of our Food struct
+those names.  And, we'll parse the <calories> contents as an
+integer.
+-->
+  <struct name="food">
     <field type="string" name="name" from="/name/." />
     <field type="string" name="price" from="/price/." />
     <field type="string" name="description" from="/description/." />
     <field type="integer" name="calories" from="/calories/." />
   </struct>
 
+<!--
+This is our main struct Menu.  It is an integer version pulled
+from the version attribute of the top level tag that we're using
+to pull a menu out of.  We're going to parse each of the <food>
+subtags into a Food struct and put them into an array called
+menuItems.
+-->
   <struct name="menu">
+    <field type="integer" name="version" from="@version" default="1" />
     <field name="menu items">
       <array>
-	<array_element type="menu item" from="/food" />
+	<array_element type="food" from="/food" />
+	<!--
+	    If instead, we had XML like this:
+
+	      <breakfast_menu>
+		<food>
+		  <entree> ... </entree>
+		  <side> ... </side>
+		  <drink> ... </drink>
+		</food>
+		...
+	      </breakfast_menu>
+
+	    each of which looked just like the <food> element does,
+            we could parse them all as foods by adding other potential
+            array elements here:
+
+		<array_element type="food" from="/entree" />
+		<array_element type="food" from="/side" />
+		<array_element type="food" from="/drink" />
+
+            the point here is that the reason array has subtags instead
+            of just element_type attributes is that you can pull the
+            contents of one array from a variety of different places.
+
+            Further, there is no inherent reason that each array
+            element has to be the same type.  As long as the language
+            you are generating a parser for supports a heterogeneous
+            array, you're golden.
+	-->
       </array>
     </field>
   </struct>

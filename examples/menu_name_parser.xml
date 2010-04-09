@@ -1,4 +1,16 @@
 <parser_generator root="menu" from="/breakfast_menu">
+<!--
+This is the parser generator file for the accompanying menu.xml if
+we're only interested in a minimal amount of information out of the
+file. That file has a top-level tag <breakfast_menu>.  Under it are a
+series of <food> tags.  Each <food> entry contains a <name>, <price>,
+<description>, and <calories> tag.
+
+Here, we want to turn it into a simple Menu struct with a version
+field initialized from the top-level version attribute if present
+(and defaulting to "1") and a menu items field that is just an
+array of the names of the foods.
+-->
   <struct name="menu">
     <field type="integer" name="version" from="@version" default="1" />
     <field name="menu items">

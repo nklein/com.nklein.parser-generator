@@ -1,11 +1,18 @@
 <parser_generator root="parser generator" from="/parser_generator">
-
+<!--
+    This is the parser generator that was used to generate the
+    parser in the ../src/parser/ directory.  It gets painfully
+    meta trying to understand this example.  I don't really
+    recommend it.
+-->
   <struct name="array element">
     <field name="type" type="string" from="@type" />
     <field name="from" type="string" from="@from" />
   </struct>
 
   <struct name="array">
+    <!-- currently, the min-elements and max-elements of arrays
+	 are not enforced by any of the generators. -->
     <field name="min elements" type="integer" from="@min_elements"
 	                       default="0" />
     <field name="max elements" type="integer" from="@max_elements"
@@ -17,11 +24,20 @@
     </field>
   </struct>
 
+  <!--
+      the field type is a bit awkward to use because it can have
+      a "type" or a "nested type".  If there is a "nested type",
+      that takes precedence.  The only supported "nested type"
+      is an array.  The array has to be nested rather than in
+      the attributes of the <field> tag because it can have
+      multiple subtags.
+    -->
   <struct name="field">
     <field name="name" type="string" from="@name" />
     <field name="type" type="string" from="@type" optional="yes" />
     <field name="from" type="string" from="@from" default="" />
     <field name="default" type="string" from="@default" optional="yes" />
+    <!-- the "optional" attribute is not particularly enforced yet. -->
     <field name="optional" type="boolean"
 	                   from="@optional"
 	                   default="no" />
