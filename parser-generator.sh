@@ -9,7 +9,7 @@ sbcl \
     --end-toplevel-options \
     "$@" \
     --language lisp \
-    --output-directory ./src/parser/ \
+    --output-directory ./ \
     --file examples/parser_generator_parser.xml \
     --prefix pg- \
     --types-package com.nklein.parser-generator.types \
