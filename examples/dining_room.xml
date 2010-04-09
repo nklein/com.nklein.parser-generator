@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<dining-room>
+<!--
+    Found this simple XML file here:
+       http://www.cs.rpi.edu/~puninj/XMLJ/classes/class1/slide3-0.html
+-->
+  <manufacturer>The Wood Shop</manufacturer>
+  <table type="round" wood="maple">
+    <price>$199.99</price>
+  </table>
+  <chair wood="maple">
+    <quantity>6</quantity>
+    <price>$39.99</price>
+  </chair>
+</dining-room>
