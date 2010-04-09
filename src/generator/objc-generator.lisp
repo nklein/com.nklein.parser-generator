@@ -50,7 +50,7 @@
   (with-slots (prefix) generator
     (remove-if #'(lambda (char)
 		   (member char '(#\Space #\Tab) :test #'eql))
-	       (concatenate 'string (string-upcase prefix)
+	       (concatenate 'string (string-capitalize prefix)
 			            (string-capitalize name)))))
 
 (defun objc-determine-field-type (generator field)
