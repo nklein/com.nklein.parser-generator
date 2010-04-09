@@ -1,0 +1,116 @@
+This is the meat of the parser generator.  This is where all
+of the magic happens after the <parser_generator> XML is read
+by ../parser/reader.lisp into the internal representations in
+../parser/types.lisp.
+
+The interface to the parser-generator is simply the (MAIN ...)
+function. It takes an optional argument which is a list of the
+command-line arguments.  Actually, it really needs these.  It's
+not very optional.  Under SBCL, however, it can pull them from
+a global variable.
+
+* The supported command-line options are:
+** --language (lisp | objc)
+   This specifies the language for which the parser is to be generated.
+
+   If not given, the default is "lisp".
+
+** --output-directory path/to/directory/for/output/
+   This specifies the directory into which output files are to be
+   generated.  Note: I am not doing any fancy checks at all so you
+   need to end the directory name with a slash ("/") or lisp will
+   assume you are referring to a file rather than a directory and
+   it will put its files in the same directory as the "file" you
+   inadvertently specified.
+
+   If not given, the default is "./".
+
+** --file path/to/the/parser_generator/input/xml
+   This specifies the file containing the <parser_generator> XML
+   for the parser you want to generate.
+
+   If not given, input is taken from *standard-input*.
+
+** <<lisp-specific options>>
+*** --prefix prefix-to-put-on-global-names
+    This specifies a prefix to be put on the names of classes
+    and accessors.  This can be used to prevent name collisions
+    if you're mixing and matching packages or if you want a struct
+    with a field called "cons" or something.
+
+    This defaults to ""
+
+*** --types-package package-name-for-generated-types
+    This specifies the name of the package used for generated types
+    and accessors.
+
+    I should be spiffy and not do the whole (DEFPACKAGE ...) and
+    (IN-PACKAGE ...) dance if you don't specify this option.  At
+    the moment, however, you have to give one.
+
+*** --reader-package package-name-for-the-generated-parser
+    This specifies the name of the package used for the generated
+    parser and all of its supporting routines.
+
+    I should be spiffy and not do the whole (DEFPACKAGE ...) and
+    (IN-PACKAGE ...) dance if you don't specify this option.  At
+    the moment, however, you have to give one.
+
+    If you specify the same name as the [[*--types-package]] argument,
+    I am smart enough not to generate two different (DEFPACKAGE ...)
+    calls.
+
+** <<objc-specific options>>
+*** --prefix prefix-to-put-on-global-names
+    This specifies a prefix to be put on the names of classes.
+    This can be used to prevent name collisions if you're mixing
+    and matching parsers or want a class called "for" or something.
+
+    If not specified, it defaults to "".
+
+*** --types-file basename-to-use-for-types-file
+    This specifies the basename of the file to use for the
+    generated types.  It will need to create a ".h" and a ".m"
+    with this basename.
+
+    If not specified, it defaults to "Types".
+
+*** --reader-class name-of-reader-class-to-generate
+    To keep track of the parsing state while parsing (and to give
+    us a place to hang parsing methods off of), we need to put
+    the reader in a class of its own.  This argument is used both
+    as the name of the class and as the basename of the ".h"
+    and ".m" file to create for the parser.  Do not give it the
+    same value as the [[*--types-file]].
+
+    If not specified, it defaults to "Reader".
+
+* The files here are:
+** package.lisp
+   This file simply declares the parser-generator package which
+   only exports the (MAIN ...) function.
+
+** lisp-generator.lisp
+   This file is the meat of the generator used to generate parsers
+   callable from Lisp.  This is the benchmark parser.  It's the one
+   that I wrote first.  It's the one that's most flexible at the
+   moment.  It's the one you should start from if you're trying
+   to generate parsers for a new language.
+
+** objc-generator.lisp
+   This file is the meat of the generator used to generate parsers
+   callable from Objective C.  Currently, I don't believe it supports
+   arrays of integers or strings.  It only supports (heterogeneous)
+   arrays of structs for arrays.
+
+** parser-generator.lisp
+   This houses the (MAIN ...) function, and not much else.
+
+** validation.lisp
+   This was a concept that I haven't followed through on, yet.
+   I am considering adding optional (VALIDATION ...) methods
+   to get called from the parser at points where a struct
+   should be complete.  It's mostly useful if these can be
+   auto-generated to enforce the @optional and @min-elements
+   and @max-elements attributes in the parser generator.  It
+   shouldn't be terribly hard to do it.  I just haven't yet.

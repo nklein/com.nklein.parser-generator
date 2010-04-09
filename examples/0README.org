@@ -1,0 +1,127 @@
+This directory contains some examples of XML that you might like
+to parse as well as some <parser_generator> XML to generate a
+parser for the sample XML.
+
+These are the current examples:
+* dining_room.xml
+  The dining room example came from here:
+  http://www.cs.rpi.edu/~puninj/XMLJ/classes/class1/slide3-0.html
+
+  It is a simple little bit of XML that different applications
+  may want to parse into different internal structures.
+
+** dining_room_direct.xml
+   In this example, we parse the dining room XML into internal
+   structures that are barely better than a DOM parsing would
+   have been.  We only massage text-content into strings or
+   integers and smooth over the difference between attributes
+   and text-content.
+
+   struct Table {
+       string shape;
+       string wood;
+       string price;
+   }
+
+   struct Chair {
+       integer quantity;
+       string wood;
+       string price;
+   }
+       
+   struct DiningRoom {
+       string manufacturer
+       Table table;
+       Chair chair;
+   }
+
+** dining_room_het.xml
+   In this example, we parse it into the manufacturer and then
+   a heterogeneous array of pieces of furniture:
+
+   struct Table {
+       string shape;
+       string wood;
+       string price;
+   }
+
+   struct Chair {
+       integer quantity;
+       string wood;
+       string price;
+   }
+       
+   struct DiningRoom {
+       string manufacturer
+       array pieces;  // pieces are either Table or Chair instances
+   }
+
+** dining_room_hom.xml
+   In this example, we take advantage of the fact that tables and
+   chairs could almost be the same struct.
+
+   struct Furniture {
+       string shape;     // defaults to ""
+       string wood;
+       integer quantity; // defaults to 1
+       string price;
+   }
+
+   struct DiningRoom {
+       string manufacturer
+       array pieces;  // pieces are all furniture, either from <table>
+                      // or <chair>
+   }
+
+** dining_room_xtnd.xml
+   This shows a planned feature that is not yet implemented.  The
+   intention is to be able to parse to structs that inherit from
+   each other:
+
+   struct Furniture {
+       string wood;
+       string price;
+   }
+
+   struct Table extends Furniture {
+       string shape;
+   }
+
+   struct Chair extends Furniture {
+       integer quantity;
+   }
+       
+   struct DiningRoom {
+       string manufacturer
+       array pieces;  // pieces are either Table or Chair instances
+   }
+
+   Of course, this will require that the XML for chair and XML for
+   table both share the same tag structure as it relates to the
+   common elements.  You wouldn't be able to, for instance, have
+   something like:
+       <table wood="maple"> ... </table>
+       <chair> <made-of wood="maple" /> ... </chair>
+
+   This shouldn't be too hard to implement.  The handlers for the
+   subclass just have to call the superclass handlers at the
+   appropriate point.  But, this will take some significant testing.
+
+* menu.xml
+  The menu XML is a simple W3C example of well-formed XML.
+  You can download it from here: http://www.w3schools.com/xml/simple.xml
+
+** menu_names_parser.xml
+   This is an example if you want to parse it and only come
+   up with a list of the names of the food items.
+
+** menu_parser.xml
+   This is an example where you actually want to recover almost
+   everything from the XML.
+
+* parser_generator_parser.xml
+  This XML is dual-purpose.  It is the XML used to specify
+  a parser which parses this very same XML.  It is wickedly
+  meta.  Take two aspirin before trying to wrap your brain
+  around this.
+

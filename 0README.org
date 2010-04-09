@@ -1,0 +1,49 @@
+This is the top level of the Parser Generator hierarchy.
+
+If you're trying to understand how to use the parser generator
+to create a parser for one of the currently supported languages,
+you probably want to look in the examples/ directory and read
+examples/0README.org and the various XML comments provided in
+the examples.
+
+If you're trying to understand how to extend the parser generator
+to support another language, you probably want to read all of the
+0README.org files in the whole hierarchy:
+   * ./0README.org
+   * ./examples/0README.org
+   * ./src/0README.org
+   * ./src/generator/0README.org
+   * ./src/parser/0README.org
+
+* What files are here:
+** com.nklein.parser-generator.asd
+   This is the ASDF system file for the parser generator package.
+
+** com.nklein.parser-generator.reader.asd
+   This is the ASDF system file for the parser generator subpackage
+   responsible for parsing the input files for the generator.
+
+** com.nklein.parser-generator.types.asd
+   This is the ASDF system file for the parser generator subpackage
+   for the internal types that the input files get parsed into.
+
+** examples/
+   This directory contains several examples of XML files and
+   corresponding parser-generator input files that one might
+   like to use to parse the given XML.  See the examples/0README.org
+   for more information about the examples.  Also, see the
+   XML comments in the examples themselves.
+
+** parser-generator.sh
+   This is a shell script that I used to generate the actual
+   parsers in src/parser/ from the input file:
+   examples/parser_generator_parser.xml.
+
+   Technically, I've tweaked the script a bit so you don't
+   accidentally overwrite those parsers.  If you do want to
+   regenerate those parsers, run this shell script with
+   the options:  --output-directory ./src/parser/
+
+** src/
+   The actual source code for the parser generator.  See the
+   src/0README.org for more details on how the source is laid out.
