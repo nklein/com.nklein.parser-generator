@@ -1,6 +1,6 @@
 (in-package :com.nklein.parser-generator)
 
-(defun main (&optional (args sb-ext:*posix-argv*))
+(defun main (&optional (args #+sbcl sb-ext:*posix-argv* #-sbcl nil))
   (let* ((option-list '(("language" :optional)
 			("output-directory" :optional)
 			("file" :optional)))

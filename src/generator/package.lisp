@@ -2,5 +2,4 @@
   (:use :com.nklein.parser-generator.reader
 	:com.nklein.parser-generator.types
 	:common-lisp)
-  (:export #:lisp-generator
-	   #:main))
+  (:export #:main))
